@@ -96,7 +96,57 @@ export async function exportVideo(
       const detailedError = buildDetailedError(renderError, webglDiagnosis, errorAnalysis);
       console.error('❌ 所有渲染方案都失败:', detailedError);
       
-      // 最后尝试屏幕录制
+      // 检查是否是 WebGL 完全不可用的情况
+      if (!webglDiagnosis.hasWebGLContext && !webglDiagnosis.canCreateShader) {
+        const errorMessage = `
+❌ Remotion web-renderer 无法工作：WebGL 完全不可用
+
+原因分析：
+${webglDiagnosis.webglError ? `- ${webglDiagnosis.webglError}` : ''}
+${webglDiagnosis.shaderError ? `- ${webglDiagnosis.shaderError}` : ''}
+
+Remotion web-renderer 的核心依赖：
+- 需要 WebGL 来处理 3D 变换和某些渲染效果
+- 即使选择"软件渲染"，仍然需要 WebGL 来创建辅助 canvas
+- 如果 WebGL 完全不可用，Remotion web-renderer 无法工作
+
+解决方案：
+1. ✅ 使用屏幕录制方案（推荐）
+   - 点击"导出视频"后，选择"使用屏幕录制"
+   - 这是目前唯一可行的客户端方案
+
+2. 🔧 尝试修复 WebGL：
+   - 更新浏览器到最新版本
+   - 更新 GPU 驱动程序
+   - 检查浏览器是否禁用了硬件加速
+   - 尝试使用其他浏览器（Chrome/Edge 推荐）
+   - 重启浏览器
+
+3. 💻 使用服务器端渲染（需要后端支持）
+   - 使用 @remotion/renderer 在服务器端渲染
+   - 需要 Node.js 环境
+
+系统将自动使用屏幕录制方案...
+        `.trim();
+        
+        console.error(errorMessage);
+        
+        // 自动切换到屏幕录制
+        console.log('🔄 自动切换到屏幕录制方案...');
+        try {
+          return await startScreenRecording(options);
+        } catch (screenError: any) {
+          if (screenError.message?.includes('SCREEN_RECORDING_REQUIRES_USER_GESTURE')) {
+            throw new Error(
+              errorMessage + '\n\n' +
+              '屏幕录制需要在用户点击事件中调用。请再次点击"导出视频"按钮，然后选择"使用屏幕录制"选项。'
+            );
+          }
+          throw screenError;
+        }
+      }
+      
+      // 其他错误，也尝试屏幕录制
       console.log('🔄 自动切换到屏幕录制方案...');
       return await startScreenRecording(options);
     }
@@ -360,64 +410,134 @@ interface WEBGL_debug_renderer_info {
 }
 
 /**
+ * 恢复 WebGL 上下文
+ * 如果上下文丢失，等待恢复事件
+ */
+async function restoreWebGLContext(timeout: number = 5000): Promise<{ restored: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    try {
+      // 尝试创建新的 WebGL 上下文来触发恢复
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl', {
+        preserveDrawingBuffer: true,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        failIfMajorPerformanceCaveat: false,
+      }) as WebGLRenderingContext | null;
+
+      if (!gl) {
+        resolve({ restored: false, error: '无法创建 WebGL 上下文' });
+        return;
+      }
+
+      // 如果上下文已丢失，等待恢复
+      if (gl.isContextLost()) {
+        console.log('⏳ WebGL 上下文已丢失，等待恢复...');
+        
+        const timeoutId = setTimeout(() => {
+          resolve({ restored: false, error: 'WebGL 上下文恢复超时' });
+        }, timeout);
+
+        const onContextRestored = () => {
+          clearTimeout(timeoutId);
+          canvas.removeEventListener('webglcontextrestored', onContextRestored);
+          console.log('✅ WebGL 上下文已恢复');
+          resolve({ restored: true });
+        };
+
+        canvas.addEventListener('webglcontextrestored', onContextRestored);
+      } else {
+        // 上下文正常，测试 shader 创建
+        const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+        const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+
+        if (!vertexShader || !fragmentShader) {
+          if (vertexShader) gl.deleteShader(vertexShader);
+          if (fragmentShader) gl.deleteShader(fragmentShader);
+          resolve({ restored: false, error: '无法创建 WebGL shader' });
+          return;
+        }
+
+        gl.deleteShader(vertexShader);
+        gl.deleteShader(fragmentShader);
+        resolve({ restored: true });
+      }
+    } catch (error: any) {
+      resolve({ restored: false, error: error.message || 'WebGL 恢复失败' });
+    }
+  });
+}
+
+/**
  * 修复 WebGL 上下文问题
  * 如果 WebGL 上下文丢失或创建失败，尝试修复
  */
-function fixWebGLContext(): { fixed: boolean; error?: string } {
+async function fixWebGLContext(): Promise<{ fixed: boolean; error?: string }> {
   try {
-    // 检查是否有丢失的 WebGL 上下文
+    // 1. 首先尝试恢复丢失的上下文
+    const restoreResult = await restoreWebGLContext(3000);
+    if (restoreResult.restored) {
+      return { fixed: true };
+    }
+
+    // 2. 如果恢复失败，尝试创建新的上下文
     const canvas = document.createElement('canvas');
     
-    // 尝试创建 WebGL 上下文
-    const gl = canvas.getContext('webgl', {
-      preserveDrawingBuffer: true,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      failIfMajorPerformanceCaveat: false, // 即使性能差也允许
-    }) || canvas.getContext('experimental-webgl', {
-      preserveDrawingBuffer: true,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      failIfMajorPerformanceCaveat: false,
-    }) as WebGLRenderingContext | null;
+    // 尝试多种 WebGL 上下文配置
+    const contextConfigs = [
+      {
+        preserveDrawingBuffer: true,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        failIfMajorPerformanceCaveat: false,
+        powerPreference: 'default' as WebGLPowerPreference,
+      },
+      {
+        preserveDrawingBuffer: true,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        failIfMajorPerformanceCaveat: false,
+        powerPreference: 'low-power' as WebGLPowerPreference,
+      },
+      {
+        preserveDrawingBuffer: false,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        failIfMajorPerformanceCaveat: false,
+      },
+    ];
 
-    if (!gl) {
-      return {
-        fixed: false,
-        error: '无法创建 WebGL 上下文',
-      };
+    for (const config of contextConfigs) {
+      try {
+        const gl = (canvas.getContext('webgl', config) || 
+                   canvas.getContext('experimental-webgl', config)) as WebGLRenderingContext | null;
+
+        if (gl && gl instanceof WebGLRenderingContext && !gl.isContextLost()) {
+          // 测试 shader 创建
+          const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+          const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+
+          if (vertexShader && fragmentShader) {
+            // 清理测试资源
+            gl.deleteShader(vertexShader);
+            gl.deleteShader(fragmentShader);
+            return { fixed: true };
+          }
+        }
+      } catch (e) {
+        // 继续尝试下一个配置
+        continue;
+      }
     }
 
-    // 测试 shader 创建
-    const vertexShader = gl.createShader(gl.VERTEX_SHADER);
-    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-
-    if (!vertexShader || !fragmentShader) {
-      // 清理
-      if (vertexShader) gl.deleteShader(vertexShader);
-      if (fragmentShader) gl.deleteShader(fragmentShader);
-      
-      return {
-        fixed: false,
-        error: '无法创建 WebGL shader',
-      };
-    }
-
-    // 清理测试资源
-    gl.deleteShader(vertexShader);
-    gl.deleteShader(fragmentShader);
-
-    // 检查上下文是否丢失
-    if (gl.isContextLost()) {
-      return {
-        fixed: false,
-        error: 'WebGL 上下文已丢失',
-      };
-    }
-
-    return { fixed: true };
+    return {
+      fixed: false,
+      error: restoreResult.error || '无法创建可用的 WebGL 上下文',
+    };
   } catch (error: any) {
     return {
       fixed: false,
@@ -435,11 +555,21 @@ async function renderWithRemotion(
   options: ExportOptions,
   hardwareAcceleration: 'prefer-hardware' | 'prefer-software' | 'no-preference'
 ): Promise<void> {
-  // 在渲染前修复 WebGL 上下文问题
-  const webglFix = fixWebGLContext();
+  // 在渲染前修复 WebGL 上下文问题（异步）
+  console.log('🔧 检查并修复 WebGL 上下文...');
+  const webglFix = await fixWebGLContext();
   if (!webglFix.fixed) {
     console.warn('⚠️ WebGL 上下文问题:', webglFix.error);
-    // 即使 WebGL 有问题，也尝试渲染（Remotion 可能会处理）
+    // 等待一段时间，让系统恢复
+    console.log('⏳ 等待 1 秒后重试...');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // 再次尝试修复
+    const retryFix = await fixWebGLContext();
+    if (!retryFix.fixed) {
+      console.error('❌ WebGL 上下文无法修复:', retryFix.error);
+      throw new Error(`WebGL 上下文问题: ${retryFix.error}。Remotion web-renderer 需要 WebGL 支持。请尝试：1) 更新浏览器 2) 更新 GPU 驱动 3) 使用屏幕录制方案`);
+    }
   } else {
     console.log('✅ WebGL 上下文正常');
   }
