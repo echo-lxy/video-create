@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Player } from '@remotion/player';
 import { useCodeStore } from '@/lib/store/code-store';
 import { useEditorStore } from '@/lib/store/editor-store';
@@ -194,8 +194,10 @@ export default function VideoPreview() {
           isFunction: typeof ComponentClass === 'function',
         });
 
-        // 直接设置组件，Remotion Player 会处理
-        setComponent(() => ComponentClass);
+        // 使用 useMemo 包装组件，确保组件引用稳定，避免 React Hooks 顺序问题
+        // 直接设置组件，但使用稳定的引用
+        const StableComponent = ComponentClass;
+        setComponent(() => StableComponent);
       } catch (error: any) {
         console.error('❌ Component extraction failed:', error);
         setCompilationError(error.message || 'Unknown error');
@@ -249,16 +251,13 @@ export default function VideoPreview() {
     );
   }
 
-  if (!component) {
-    return (
-      <div className="h-full flex items-center justify-center bg-gray-950">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-500" />
-          <p className="text-gray-400">Compiling and validating code...</p>
-        </div>
-      </div>
-    );
-  }
+  // 使用 useMemo 确保组件引用稳定，避免 React Hooks 顺序问题
+  // 必须在所有条件返回之前调用，确保 Hooks 调用顺序一致
+  const stableComponent = useMemo(() => {
+    if (!component) return null;
+    // 返回一个稳定的组件引用
+    return component;
+  }, [component]);
 
   // 调试信息
   useEffect(() => {
@@ -268,7 +267,6 @@ export default function VideoPreview() {
         componentType: typeof component,
         componentName: component.displayName || component.name || 'Unknown',
         hasComponent: !!component,
-        component: component,
       });
     } else {
       console.log('⏳ VideoPreview: Waiting for component...', {
@@ -279,6 +277,17 @@ export default function VideoPreview() {
       });
     }
   }, [component, code, validationError]);
+
+  if (!component) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-950">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-500" />
+          <p className="text-gray-400">Compiling and validating code...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
@@ -292,10 +301,10 @@ export default function VideoPreview() {
       </div>
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="bg-black rounded-lg overflow-hidden shadow-2xl w-full max-w-4xl">
-          {component ? (
+          {stableComponent ? (
             <div className="w-full">
               <Player
-                component={component}
+                component={stableComponent}
                 durationInFrames={300}
                 compositionWidth={1920}
                 compositionHeight={1080}
