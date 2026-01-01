@@ -29,7 +29,7 @@ export default function Sidebar({ activeActivity, width }: SidebarProps) {
   }
 
   return (
-    <div className="h-full bg-[#252526] border-r border-[#3e3e42]" style={{ width }}>
+    <div className="w-full h-full bg-[#252526] border-r border-[#3e3e42] overflow-hidden">
       <Suspense fallback={<LoadingPlaceholder text="Loading..." />}>
         {activeActivity === 'ai' && <AIChatPanel />}
         {activeActivity === 'assets' && <AssetManager />}

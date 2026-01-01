@@ -171,20 +171,22 @@ export default function VideoEditor() {
         console.error('VideoEditor Error Boundary caught:', error, errorInfo);
       }}
     >
-      <div className="h-full flex flex-col bg-[#1e1e1e] overflow-hidden">
-        {/* 主布局：活动栏 + 可调整大小的面板 */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* 活动栏 - 固定宽度 */}
-          <div className="flex-shrink-0">
+      {/* 最外层容器 - 100% 高度和宽度 */}
+      <div className="w-full h-full flex flex-col bg-[#1e1e1e]" style={{ position: 'relative' }}>
+        {/* 主内容区 - flex-1 确保占满剩余空间 */}
+        <div className="flex-1 flex min-h-0" style={{ position: 'relative' }}>
+          {/* 活动栏 - 固定宽度 48px */}
+          <div className="w-12 flex-shrink-0 h-full">
             <ActivityBar
               activeActivity={activeActivity}
               onActivityChange={handleActivityChange}
             />
           </div>
 
-          {/* 主内容区 - 使用 Allotment 实现可调整大小 */}
-          <div className="flex-1 overflow-hidden">
+          {/* Allotment 容器 - 占满剩余空间 */}
+          <div className="flex-1 min-w-0 h-full" style={{ position: 'relative' }}>
             <Allotment
+              proportionalLayout={false}
               onChange={(sizes) => {
                 // 跟踪侧边栏宽度变化
                 if (showSidebar && sizes.length > 0) {
@@ -197,10 +199,12 @@ export default function VideoEditor() {
                 <Allotment.Pane 
                   minSize={200} 
                   maxSize={600}
-                  preferredSize={320}
+                  preferredSize={sidebarWidth || 320}
                   snap
                 >
-                  <Sidebar activeActivity={activeActivity} width={sidebarWidth} />
+                  <div className="w-full h-full">
+                    <Sidebar activeActivity={activeActivity} width={sidebarWidth} />
+                  </div>
                 </Allotment.Pane>
               )}
 
@@ -208,6 +212,7 @@ export default function VideoEditor() {
               <Allotment.Pane>
                 <Allotment 
                   vertical
+                  proportionalLayout={false}
                   onChange={(sizes) => {
                     // 跟踪底部面板高度变化
                     if (showBottomPanel && sizes.length > 1) {
@@ -217,11 +222,13 @@ export default function VideoEditor() {
                 >
                   {/* 主编辑区 */}
                   <Allotment.Pane minSize={300}>
-                    <EditorArea
-                      activeTabs={activeTabs}
-                      onTabChange={setActiveTabs}
-                      defaultActiveTab={activeActivity === 'editor' ? 'editor' : activeActivity === 'preview' ? 'preview' : undefined}
-                    />
+                    <div className="w-full h-full">
+                      <EditorArea
+                        activeTabs={activeTabs}
+                        onTabChange={setActiveTabs}
+                        defaultActiveTab={activeActivity === 'editor' ? 'editor' : activeActivity === 'preview' ? 'preview' : undefined}
+                      />
+                    </div>
                   </Allotment.Pane>
 
                   {/* 底部面板 - 可选显示 */}
@@ -229,13 +236,15 @@ export default function VideoEditor() {
                     <Allotment.Pane 
                       minSize={100} 
                       maxSize={500}
-                      preferredSize={200}
+                      preferredSize={panelHeight || 200}
                       snap
                     >
-                      <BottomPanelComponent 
-                        height={panelHeight} 
-                        onHeightChange={setPanelHeight} 
-                      />
+                      <div className="w-full h-full">
+                        <BottomPanelComponent 
+                          height={panelHeight} 
+                          onHeightChange={setPanelHeight} 
+                        />
+                      </div>
                     </Allotment.Pane>
                   )}
                 </Allotment>
@@ -245,7 +254,9 @@ export default function VideoEditor() {
         </div>
 
         {/* 状态栏 - 固定在底部 */}
-        <StatusBar />
+        <div className="flex-shrink-0">
+          <StatusBar />
+        </div>
       </div>
     </ErrorBoundary>
   );

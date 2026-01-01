@@ -12,7 +12,7 @@ export default function StatusBar() {
   const duration = (durationInFrames / fps).toFixed(1);
 
   return (
-    <div className="h-6 bg-[#007acc] text-white text-xs flex items-center justify-between px-4">
+    <div className="w-full h-6 flex-shrink-0 bg-[#007acc] text-white text-xs flex items-center justify-between px-4">
       <div className="flex items-center gap-4">
         {/* 编译状态 */}
         <div className="flex items-center gap-1.5">

@@ -59,9 +59,9 @@ export default function Panel({ height, onHeightChange }: PanelProps) {
   }
 
   return (
-    <div className="flex flex-col bg-[#1e1e1e] border-t border-[#3e3e42]" style={{ height }}>
+    <div className="w-full h-full flex flex-col bg-[#1e1e1e] border-t border-[#3e3e42] overflow-hidden">
       {/* 标签栏 */}
-      <div className="h-9 bg-[#252526] border-b border-[#3e3e42] flex items-center justify-between px-2">
+      <div className="h-9 flex-shrink-0 bg-[#252526] border-b border-[#3e3e42] flex items-center justify-between px-2">
         <div className="flex items-center gap-1">
           <button
             onClick={() => setActiveTab('problems')}

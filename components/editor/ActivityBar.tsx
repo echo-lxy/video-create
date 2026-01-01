@@ -25,7 +25,7 @@ const activities: Array<{
 
 export default function ActivityBar({ activeActivity, onActivityChange }: ActivityBarProps) {
   return (
-    <div className="h-full w-14 bg-[#2d2d30] border-r border-[#3e3e42] flex flex-col items-center py-2">
+    <div className="h-full w-full bg-[#2d2d30] border-r border-[#3e3e42] flex flex-col items-center py-2 overflow-y-auto">
       {activities.map((activity) => {
         const Icon = activity.icon;
         const isActive = activeActivity === activity.id;

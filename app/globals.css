@@ -3,13 +3,29 @@
 @tailwind utilities;
 
 /* Allotment 样式覆盖 - VSCode 风格 */
-.split-view-view {
-  background-color: #1e1e1e !important;
+/* 确保 Allotment 容器有正确的尺寸 */
+.allotment {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative;
 }
 
+.split-view-view {
+  background-color: #1e1e1e !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.split-view-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 分隔条样式 */
 .sash {
   background-color: #3e3e42 !important;
   transition: background-color 0.1s ease;
+  z-index: 35 !important; /* 确保分隔条在最上层 */
 }
 
 .sash:hover {
@@ -28,6 +44,12 @@
 
 .sash-container {
   pointer-events: all !important;
+}
+
+/* 确保面板内容填满 */
+.split-view-view > * {
+  width: 100%;
+  height: 100%;
 }
 
 @layer base {
