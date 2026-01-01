@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useState, useEffect, Component } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 // 调试模式：在 URL 中添加 ?debug=1 来显示加载状态
