@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Player } from '@remotion/player';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Player, PlayerRef } from '@remotion/player';
 import { useCodeStore } from '@/lib/store/code-store';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { compileTypeScript } from '@/lib/compiler/code-compiler';
 import { validateCode } from '@/lib/security/code-validator';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { debounce } from 'lodash-es';
+import VideoDebugControls from './VideoDebugControls';
+import { exportVideo } from '@/lib/video/video-exporter';
 
 export default function VideoPreview() {
   const { code } = useCodeStore();
@@ -15,6 +17,14 @@ export default function VideoPreview() {
     useEditorStore();
   const [component, setComponent] = useState<React.ComponentType | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const playerRef = useRef<PlayerRef>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  
+  // 视频配置
+  const durationInFrames = 300;
+  const fps = 30;
+  const width = 1920;
+  const height = 1080;
 
   const compileAndValidate = useCallback(
     async (codeToCompile: string) => {
@@ -289,27 +299,57 @@ export default function VideoPreview() {
     );
   }
 
+  // 处理视频导出
+  const handleExport = useCallback(async () => {
+    if (!stableComponent) {
+      alert('请先编译代码，生成视频组件');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      await exportVideo({
+        component: stableComponent,
+        durationInFrames,
+        fps,
+        width,
+        height,
+      });
+      alert('视频导出成功！');
+    } catch (error: any) {
+      console.error('导出失败:', error);
+      alert(`视频导出失败: ${error.message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [stableComponent, durationInFrames, fps, width, height]);
+
   return (
     <div className="h-full flex flex-col bg-gray-950">
       <div className="p-4 border-b border-gray-800">
-        <h3 className="text-sm font-medium text-gray-300">Video Preview</h3>
-        {component && (
-          <p className="text-xs text-gray-500 mt-1">
-            Component: {component.displayName || component.name || 'Unknown'}
-          </p>
-        )}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-gray-300">Video Preview</h3>
+            {component && (
+              <p className="text-xs text-gray-500 mt-1">
+                Component: {component.displayName || component.name || 'Unknown'}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
         <div className="bg-black rounded-lg overflow-hidden shadow-2xl w-full max-w-4xl">
           {stableComponent ? (
             <div className="w-full">
               <Player
+                ref={playerRef}
                 component={stableComponent}
-                durationInFrames={300}
-                compositionWidth={1920}
-                compositionHeight={1080}
-                fps={30}
-                controls
+                durationInFrames={durationInFrames}
+                compositionWidth={width}
+                compositionHeight={height}
+                fps={fps}
+                controls={false}
                 acknowledgeRemotionLicense={true}
                 style={{
                   width: '100%',
@@ -330,6 +370,16 @@ export default function VideoPreview() {
           )}
         </div>
       </div>
+      
+      {/* 调试控制栏 */}
+      {stableComponent && (
+        <VideoDebugControls
+          playerRef={playerRef}
+          durationInFrames={durationInFrames}
+          fps={fps}
+          onExport={handleExport}
+        />
+      )}
     </div>
   );
 }
