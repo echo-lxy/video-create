@@ -474,6 +474,91 @@ export default function VideoPreview() {
             )}
           </div>
         </div>
+        
+        {/* 视频设置面板 */}
+        {showVideoSettings && (
+          <div className="mt-4 p-4 bg-gray-900 rounded-lg border border-gray-700">
+            <h4 className="text-xs font-medium text-gray-300 mb-3">视频设置</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">时长（帧）</label>
+                <Input
+                  type="number"
+                  value={tempVideoConfig.durationInFrames}
+                  onChange={(e) => setTempVideoConfig({
+                    ...tempVideoConfig,
+                    durationInFrames: Math.max(1, parseInt(e.target.value) || 1),
+                  })}
+                  className="h-8 text-xs"
+                  min={1}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {(tempVideoConfig.durationInFrames / tempVideoConfig.fps).toFixed(1)} 秒
+                </p>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">帧率 (fps)</label>
+                <Input
+                  type="number"
+                  value={tempVideoConfig.fps}
+                  onChange={(e) => setTempVideoConfig({
+                    ...tempVideoConfig,
+                    fps: Math.max(1, Math.min(60, parseInt(e.target.value) || 30)),
+                  })}
+                  className="h-8 text-xs"
+                  min={1}
+                  max={60}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">宽度 (px)</label>
+                <Input
+                  type="number"
+                  value={tempVideoConfig.width}
+                  onChange={(e) => setTempVideoConfig({
+                    ...tempVideoConfig,
+                    width: Math.max(1, parseInt(e.target.value) || 1920),
+                  })}
+                  className="h-8 text-xs"
+                  min={1}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">高度 (px)</label>
+                <Input
+                  type="number"
+                  value={tempVideoConfig.height}
+                  onChange={(e) => setTempVideoConfig({
+                    ...tempVideoConfig,
+                    height: Math.max(1, parseInt(e.target.value) || 1080),
+                  })}
+                  className="h-8 text-xs"
+                  min={1}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-4">
+              <Button
+                size="sm"
+                onClick={handleSaveVideoConfig}
+                className="h-7 text-xs"
+              >
+                保存
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setTempVideoConfig(videoConfig);
+                  setShowVideoSettings(false);
+                }}
+                className="h-7 text-xs"
+              >
+                取消
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
       <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
         <div className="bg-black rounded-lg overflow-hidden shadow-2xl w-full max-w-4xl">
