@@ -3,12 +3,14 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { Button } from '@/components/ui/button';
-import { Code2, MessageSquare, Play, AlertCircle, Loader2 } from 'lucide-react';
+import { Code2, MessageSquare, Play, AlertCircle, Loader2, FolderOpen, FileText } from 'lucide-react';
 
 // 懒加载组件，按需加载以加快初始加载
 const AIChatPanel = lazy(() => import('@/components/ai/AIChatPanel').then(m => ({ default: m.default })));
 const CodeEditor = lazy(() => import('./CodeEditor').then(m => ({ default: m.default })));
 const VideoPreview = lazy(() => import('./VideoPreview').then(m => ({ default: m.default })));
+const AssetManager = lazy(() => import('@/components/assets/AssetManager').then(m => ({ default: m.default })));
+const PromptTemplateEditor = lazy(() => import('@/components/prompt/PromptTemplateEditor').then(m => ({ default: m.default })));
 
 // 加载占位符
 const LoadingPlaceholder = ({ text }: { text: string }) => (
@@ -25,6 +27,8 @@ export default function VideoEditor() {
     useEditorStore();
   const [mounted, setMounted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAssets, setShowAssets] = useState(false);
+  const [showPromptTemplate, setShowPromptTemplate] = useState(false);
 
   useEffect(() => {
     // 延迟设置 mounted，给组件一些时间初始化
@@ -126,19 +130,51 @@ export default function VideoEditor() {
             <Code2 className="w-4 h-4 mr-2" />
             Code Editor
           </Button>
+          <Button
+            size="sm"
+            variant={showAssets ? 'default' : 'outline'}
+            onClick={() => setShowAssets(!showAssets)}
+          >
+            <FolderOpen className="w-4 h-4 mr-2" />
+            资源管理
+          </Button>
+          <Button
+            size="sm"
+            variant={showPromptTemplate ? 'default' : 'outline'}
+            onClick={() => setShowPromptTemplate(!showPromptTemplate)}
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            提示词模板
+          </Button>
         </div>
       </header>
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: AI Chat Panel */}
-        {showAIPanel && (
-          <div className="w-96 border-r border-gray-800 flex-shrink-0">
-            <Suspense fallback={<LoadingPlaceholder text="Loading AI Panel..." />}>
-              <AIChatPanel />
-            </Suspense>
-          </div>
-        )}
+        {/* Left: AI Chat Panel / Assets / Prompt Template */}
+        <div className="flex">
+          {showAIPanel && (
+            <div className="w-96 border-r border-gray-800 flex-shrink-0">
+              <Suspense fallback={<LoadingPlaceholder text="Loading AI Panel..." />}>
+                <AIChatPanel />
+              </Suspense>
+            </div>
+          )}
+          {showAssets && (
+            <div className="w-80 border-r border-gray-800 flex-shrink-0">
+              <Suspense fallback={<LoadingPlaceholder text="Loading Assets..." />}>
+                <AssetManager />
+              </Suspense>
+            </div>
+          )}
+          {showPromptTemplate && (
+            <div className="w-80 border-r border-gray-800 flex-shrink-0">
+              <Suspense fallback={<LoadingPlaceholder text="Loading Prompt Template..." />}>
+                <PromptTemplateEditor />
+              </Suspense>
+            </div>
+          )}
+        </div>
 
         {/* Center: Code Editor or Preview */}
         <div className="flex-1 flex flex-col min-w-0">

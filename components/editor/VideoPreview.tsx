@@ -93,7 +93,7 @@ export default function VideoPreview() {
           // 工具函数
           interpolate,
           spring,
-          staticFile,
+          staticFile: remotionStaticFile,
           // Easing
           Easing,
           // 其他常用 API
@@ -101,6 +101,29 @@ export default function VideoPreview() {
           delayRender,
           getInputProps,
         } = remotion;
+
+        // 创建自定义 staticFile 函数，支持从资源库获取
+        let staticFile: (pathOrId: string) => string;
+        try {
+          const { useAssetsStore } = await import('@/lib/store/assets-store');
+          const getAssetUrl = useAssetsStore.getState().getAssetUrl;
+          
+          // 自定义 staticFile：优先从资源库获取，否则使用 remotion 的 staticFile
+          staticFile = (pathOrId: string): string => {
+            // 如果是以 asset_ 开头的 ID，从资源库获取
+            if (pathOrId.startsWith('asset_')) {
+              const url = getAssetUrl(pathOrId);
+              if (url) {
+                return url;
+              }
+            }
+            // 否则使用 remotion 的 staticFile
+            return remotionStaticFile(pathOrId);
+          };
+        } catch (error) {
+          // 如果无法加载 assets store，使用 remotion 的 staticFile
+          staticFile = remotionStaticFile;
+        }
 
         // 创建模块执行环境（CommonJS 风格）
         const moduleExports: any = {};
