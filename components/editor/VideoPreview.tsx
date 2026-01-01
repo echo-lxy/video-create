@@ -53,23 +53,8 @@ export default function VideoPreview() {
 
         // 使用模块包装器执行 ESM 代码（最佳实践）
         // 将编译后的 ESM 代码转换为可执行的函数，注入 React 和 remotion
-        // 这是处理动态 ESM 代码的标准方法
         
-        // 将 ESM export 转换为 CommonJS 风格的导出，便于提取
-        const executableCode = compiledCode
-          // 将 export const MyVideo 转换为 const MyVideo
-          .replace(/export\s+const\s+MyVideo\s*=/g, 'const MyVideo =')
-          .replace(/export\s+\{\s*MyVideo\s*\}/g, 'module.exports = { MyVideo }')
-          // 移除其他可能的 export 语句
-          .replace(/export\s+default\s+/g, 'const defaultExport = ');
-
-        // 创建模块执行环境（CommonJS 风格）
-        const moduleExports: any = {};
-        const module = { exports: moduleExports };
-        const exports = moduleExports;
-
         // 从 remotion 解构常用 API（方便用户直接使用）
-        // 只使用 remotion 实际存在的 API
         const {
           AbsoluteFill,
           useCurrentFrame,
@@ -82,6 +67,41 @@ export default function VideoPreview() {
           Img,
           OffthreadVideo,
         } = remotion;
+
+        // 创建模块执行环境（CommonJS 风格）
+        const moduleExports: any = {};
+        const module = { exports: moduleExports };
+        const exports = moduleExports;
+
+        // 将 ESM 代码包装为可执行的函数
+        // 处理各种 export 格式
+        let executableCode = compiledCode;
+        
+        // 1. 处理 export const MyVideo = ...
+        executableCode = executableCode.replace(
+          /export\s+const\s+MyVideo\s*=/g,
+          'const MyVideo ='
+        );
+        
+        // 2. 处理 export { MyVideo }
+        executableCode = executableCode.replace(
+          /export\s+\{\s*MyVideo\s*\};?/g,
+          'module.exports = { MyVideo };'
+        );
+        
+        // 3. 处理 export { MyVideo as default } 或其他形式
+        executableCode = executableCode.replace(
+          /export\s+\{[^}]*MyVideo[^}]*\};?/g,
+          'module.exports = { MyVideo };'
+        );
+        
+        // 4. 确保最后有导出语句
+        if (!executableCode.includes('module.exports')) {
+          // 如果代码中有 MyVideo 但没有导出，添加导出
+          if (executableCode.includes('const MyVideo') || executableCode.includes('let MyVideo') || executableCode.includes('var MyVideo')) {
+            executableCode += '\nmodule.exports = { MyVideo };';
+          }
+        }
 
         // 执行代码，注入 React 和 remotion 以及所有常用 API
         // eslint-disable-next-line no-eval
@@ -121,10 +141,34 @@ export default function VideoPreview() {
           OffthreadVideo
         );
 
-        const ComponentClass = moduleExports.MyVideo;
-
+        // 尝试多种方式获取组件
+        let ComponentClass = moduleExports.MyVideo;
+        
+        // 如果 module.exports 中没有，尝试从全局作用域获取
         if (!ComponentClass) {
-          throw new Error('Failed to extract MyVideo component. Make sure your code exports a component named "MyVideo".');
+          try {
+            // eslint-disable-next-line no-eval
+            const globalScope = eval('(function() { ' + executableCode + '; return typeof MyVideo !== "undefined" ? MyVideo : null; })()');
+            ComponentClass = globalScope;
+          } catch (evalError) {
+            // eval 失败，继续尝试其他方法
+            console.warn('Failed to get component from global scope:', evalError);
+          }
+        }
+        
+        // 如果还是没有，检查是否有 MyVideo 变量但没有正确导出
+        if (!ComponentClass) {
+          // 输出调试信息
+          console.error('Failed to extract MyVideo component. Debug info:', {
+            moduleExports,
+            hasMyVideoInCode: executableCode.includes('MyVideo'),
+            compiledCodePreview: compiledCode.substring(0, 300),
+          });
+          
+          throw new Error(
+            'Failed to extract MyVideo component. Make sure your code exports a component named "MyVideo".\n' +
+            'Example: export const MyVideo = () => { ... } or export { MyVideo }'
+          );
         }
 
         setComponent(() => ComponentClass);
