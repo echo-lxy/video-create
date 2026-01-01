@@ -65,7 +65,7 @@ export async function compileTypeScript(code: string): Promise<CompileResult> {
     }
 
     // 预处理代码：移除 React 和 remotion 的导入语句
-    // 因为它们会作为参数传入，不需要导入
+    // 因为它们会作为全局变量注入，不需要导入
     let codeToCompile = code.trim();
     
     // 移除各种形式的 React 导入
@@ -78,7 +78,7 @@ export async function compileTypeScript(code: string): Promise<CompileResult> {
       ''
     );
     
-    // 移除 remotion 的导入（AbsoluteFill, useCurrentFrame 等会作为参数传入）
+    // 移除 remotion 的导入（AbsoluteFill, useCurrentFrame 等会作为全局变量注入）
     codeToCompile = codeToCompile.replace(
       /import\s+(?:\*\s+as\s+)?remotion(?:\s*,\s*\{[^}]*\})?\s+from\s+['"]remotion['"];?\s*/g,
       ''
@@ -97,25 +97,13 @@ export async function compileTypeScript(code: string): Promise<CompileResult> {
       codeToCompile = `${codeToCompile}\n\nexport { MyVideo };`;
     }
 
-    // 包装代码，将 React 和 remotion 作为参数传入
-    // 注意：代码中直接使用 React 和 remotion，不需要导入
-    const wrappedCode = `
-      (function(React, remotion) {
-        // React 和 remotion 作为参数传入，可以直接使用
-        const { AbsoluteFill, useCurrentFrame, interpolate, useVideoConfig, useAudioData, staticFile, Sequence, Video, Audio, Img, OffthreadVideo, ...remotionExports } = remotion;
-        
-        ${codeToCompile}
-        
-        // 返回导出的组件
-        return typeof MyVideo !== 'undefined' ? MyVideo : null;
-      })
-    `;
-
-    // 使用 IIFE 格式编译
-    const result = await esbuild.transform(wrappedCode, {
+    // 使用 ESM 格式编译（最佳实践：支持 export 语句）
+    // 这是 CodeSandbox、StackBlitz 等在线 IDE 使用的标准方法
+    // 注意：transform API 不支持 external，我们会在执行时注入依赖
+    const result = await esbuild.transform(codeToCompile, {
       loader: 'tsx',
       target: 'es2020',
-      format: 'iife', // IIFE 格式，可以在浏览器中直接执行
+      format: 'esm', // ESM 格式，支持 export 语句
       jsxFactory: 'React.createElement',
       jsxFragment: 'React.Fragment',
       // 定义全局变量，避免 esbuild 报错

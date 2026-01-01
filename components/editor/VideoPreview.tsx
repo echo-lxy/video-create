@@ -39,7 +39,8 @@ export default function VideoPreview() {
           return;
         }
 
-        // 3. 创建组件
+        // 3. 创建组件（使用 ESM + 动态 import，最佳实践）
+        // 这是 CodeSandbox、StackBlitz 等在线 IDE 使用的标准方法
         const compiledCode = result.code || '';
         
         // 动态导入依赖
@@ -50,13 +51,77 @@ export default function VideoPreview() {
         const React = ReactModule.default || ReactModule;
         const remotion = remotionModule.default || remotionModule;
 
-        // 执行编译后的代码
-        // compiledCode 是一个 IIFE 函数，需要调用并传入 React 和 remotion
-        // eslint-disable-next-line no-eval
-        const componentFactory = eval(compiledCode);
+        // 使用模块包装器执行 ESM 代码（最佳实践）
+        // 将编译后的 ESM 代码转换为可执行的函数，注入 React 和 remotion
+        // 这是处理动态 ESM 代码的标准方法
         
-        // 调用 IIFE，传入 React 和 remotion
-        const ComponentClass = componentFactory(React, remotion);
+        // 将 ESM export 转换为 CommonJS 风格的导出，便于提取
+        const executableCode = compiledCode
+          // 将 export const MyVideo 转换为 const MyVideo
+          .replace(/export\s+const\s+MyVideo\s*=/g, 'const MyVideo =')
+          .replace(/export\s+\{\s*MyVideo\s*\}/g, 'module.exports = { MyVideo }')
+          // 移除其他可能的 export 语句
+          .replace(/export\s+default\s+/g, 'const defaultExport = ');
+
+        // 创建模块执行环境（CommonJS 风格）
+        const moduleExports: any = {};
+        const module = { exports: moduleExports };
+        const exports = moduleExports;
+
+        // 从 remotion 解构常用 API（方便用户直接使用）
+        // 只使用 remotion 实际存在的 API
+        const {
+          AbsoluteFill,
+          useCurrentFrame,
+          interpolate,
+          useVideoConfig,
+          staticFile,
+          Sequence,
+          Video,
+          Audio,
+          Img,
+          OffthreadVideo,
+        } = remotion;
+
+        // 执行代码，注入 React 和 remotion 以及所有常用 API
+        // eslint-disable-next-line no-eval
+        const executeModule = new Function(
+          'React',
+          'remotion',
+          'module',
+          'exports',
+          'AbsoluteFill',
+          'useCurrentFrame',
+          'interpolate',
+          'useVideoConfig',
+          'staticFile',
+          'Sequence',
+          'Video',
+          'Audio',
+          'Img',
+          'OffthreadVideo',
+          executableCode
+        );
+
+        // 执行模块，获取导出的组件
+        executeModule(
+          React,
+          remotion,
+          module,
+          exports,
+          AbsoluteFill,
+          useCurrentFrame,
+          interpolate,
+          useVideoConfig,
+          staticFile,
+          Sequence,
+          Video,
+          Audio,
+          Img,
+          OffthreadVideo
+        );
+
+        const ComponentClass = moduleExports.MyVideo;
 
         if (!ComponentClass) {
           throw new Error('Failed to extract MyVideo component. Make sure your code exports a component named "MyVideo".');
