@@ -102,13 +102,15 @@ export default function VideoEditor() {
       // 根据活动项更新标签页
       if (activity === 'editor') {
         // 确保编辑器标签页打开
-        if (!activeTabs.includes('editor')) {
-          setActiveTabs(['editor', ...activeTabs]);
+        const currentTabs: Array<'editor' | 'preview'> = activeTabs.length > 0 ? activeTabs : ['preview'];
+        if (!currentTabs.includes('editor')) {
+          setActiveTabs(['editor', ...currentTabs]);
         }
       } else if (activity === 'preview') {
         // 确保预览标签页打开
-        if (!activeTabs.includes('preview')) {
-          setActiveTabs(['preview', ...activeTabs]);
+        const currentTabs: Array<'editor' | 'preview'> = activeTabs.length > 0 ? activeTabs : ['editor'];
+        if (!currentTabs.includes('preview')) {
+          setActiveTabs(['preview', ...currentTabs]);
         }
       }
     }

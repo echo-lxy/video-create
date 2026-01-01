@@ -128,49 +128,58 @@ function DraggableTab({
 }
 
 export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaultActiveTab }: EditorAreaProps) {
+  // 确保 activeTabs 始终有效
+  const safeActiveTabs: TabId[] = activeTabs && activeTabs.length > 0 ? activeTabs : ['editor'];
+  
   // 默认激活编辑器标签
-  const [activeTab, setActiveTab] = useState<TabId>(defaultActiveTab || 'editor');
-  const [orderedTabs, setOrderedTabs] = useState<TabId[]>(activeTabs.length > 0 ? activeTabs : ['editor']);
+  const [activeTab, setActiveTab] = useState<TabId>(defaultActiveTab || safeActiveTabs[0] || 'editor');
+  const [orderedTabs, setOrderedTabs] = useState<TabId[]>(safeActiveTabs);
   const [editorSize, setEditorSize] = useState(60); // 编辑器占比（百分比）- 默认60%（编辑器在上）
   
   // 同步 orderedTabs 与 activeTabs
   useEffect(() => {
-    if (activeTabs.length === 0) {
+    const currentActiveTabs: TabId[] = activeTabs && activeTabs.length > 0 ? activeTabs : ['editor'];
+    
+    if (currentActiveTabs.length === 0) {
       setOrderedTabs(['editor']);
       setActiveTab('editor');
       return;
     }
     
     // 保持 activeTabs 的顺序，但保留 orderedTabs 中已有的顺序
-    const newOrdered = activeTabs.filter(id => orderedTabs.includes(id));
-    const newTabs = activeTabs.filter(id => !orderedTabs.includes(id));
-    const updated = [...newOrdered, ...newTabs];
+    const newOrdered: TabId[] = currentActiveTabs.filter((id: TabId) => orderedTabs.includes(id));
+    const newTabs: TabId[] = currentActiveTabs.filter((id: TabId) => !orderedTabs.includes(id));
+    const updated: TabId[] = [...newOrdered, ...newTabs];
     
     // 确保 updated 不为空
     if (updated.length > 0) {
       setOrderedTabs(updated);
     } else {
-      // 如果更新后为空，使用 activeTabs
-      setOrderedTabs(activeTabs);
+      // 如果更新后为空，使用 currentActiveTabs
+      setOrderedTabs(currentActiveTabs);
     }
   }, [activeTabs]); // 移除 orderedTabs 依赖，避免循环更新
   
   // 当activeTabs变化时，更新activeTab
   useEffect(() => {
-    if (activeTabs.length === 0) {
+    const currentActiveTabs: TabId[] = activeTabs && activeTabs.length > 0 ? activeTabs : ['editor'];
+    
+    if (currentActiveTabs.length === 0) {
       // 如果 activeTabs 为空，设置默认标签
       setActiveTab('editor');
       return;
     }
     
     // 确保 activeTab 在 activeTabs 中
-    if (!activeTabs.includes(activeTab)) {
+    if (!currentActiveTabs.includes(activeTab)) {
       // 如果当前激活的标签不在 activeTabs 中，切换到第一个可用标签
-      const firstTab = activeTabs[0];
+      const firstTab = currentActiveTabs[0];
       if (firstTab) {
         setActiveTab(firstTab);
+      } else {
+        setActiveTab('editor');
       }
-    } else if (defaultActiveTab && activeTabs.includes(defaultActiveTab) && activeTab !== defaultActiveTab) {
+    } else if (defaultActiveTab && currentActiveTabs.includes(defaultActiveTab) && activeTab !== defaultActiveTab) {
       // 如果 defaultActiveTab 存在且在 activeTabs 中，切换到它
       setActiveTab(defaultActiveTab);
     }
@@ -212,15 +221,18 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
 
   const handleTabClick = (tabId: TabId) => {
     setActiveTab(tabId);
-    if (!activeTabs.includes(tabId)) {
-      onTabChange([...activeTabs, tabId]);
+    const currentActiveTabs: TabId[] = activeTabs && activeTabs.length > 0 ? activeTabs : [];
+    if (!currentActiveTabs.includes(tabId)) {
+      onTabChange([...currentActiveTabs, tabId]);
     }
   };
 
   const handleTabClose = (e: React.MouseEvent, tabId: TabId) => {
     e.stopPropagation();
-    if (activeTabs.length > 1) {
-      const newTabs = activeTabs.filter(id => id !== tabId);
+    const currentActiveTabs: TabId[] = activeTabs && activeTabs.length > 0 ? activeTabs : [];
+    
+    if (currentActiveTabs.length > 1) {
+      const newTabs: TabId[] = currentActiveTabs.filter((id: TabId) => id !== tabId);
       
       // 边界检查：确保新数组不为空
       if (newTabs.length === 0) {
@@ -229,7 +241,7 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
       }
       
       onTabChange(newTabs);
-      setOrderedTabs(orderedTabs.filter(id => id !== tabId));
+      setOrderedTabs(orderedTabs.filter((id: TabId) => id !== tabId));
       
       if (activeTab === tabId) {
         // 确保新激活的标签存在
@@ -244,17 +256,18 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
     }
   };
 
-  const hasEditor = activeTabs.includes('editor');
-  const hasPreview = activeTabs.includes('preview');
+  const currentActiveTabs: TabId[] = activeTabs && activeTabs.length > 0 ? activeTabs : ['editor'];
+  const hasEditor = currentActiveTabs.includes('editor');
+  const hasPreview = currentActiveTabs.includes('preview');
   const showSplit = hasEditor && hasPreview;
 
   // 获取当前显示的标签（按顺序），确保不为空
-  const visibleTabs = orderedTabs.filter(id => activeTabs.includes(id));
+  const visibleTabs: TabId[] = orderedTabs.filter((id: TabId) => currentActiveTabs.includes(id));
   
-  // 如果 visibleTabs 为空，使用 activeTabs 作为后备
+  // 如果 visibleTabs 为空，使用 currentActiveTabs 作为后备
   const safeVisibleTabs: TabId[] = visibleTabs.length > 0 
     ? visibleTabs 
-    : (activeTabs.length > 0 ? activeTabs : ['editor']);
+    : (currentActiveTabs.length > 0 ? currentActiveTabs : ['editor']);
 
   return (
     <div className="w-full h-full flex flex-col bg-[#1e1e1e] overflow-hidden">
