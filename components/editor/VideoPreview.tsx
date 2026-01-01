@@ -6,13 +6,15 @@ import { useCodeStore } from '@/lib/store/code-store';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { compileTypeScript } from '@/lib/compiler/code-compiler';
 import { validateCode } from '@/lib/security/code-validator';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, Settings } from 'lucide-react';
 import { debounce } from 'lodash-es';
 import VideoDebugControls from './VideoDebugControls';
 import { exportVideo } from '@/lib/video/video-exporter';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function VideoPreview() {
-  const { code } = useCodeStore();
+  const { code, videoConfig, setVideoConfig } = useCodeStore();
   const { setCompiling, setCompilationError, compilationError } =
     useEditorStore();
   const [component, setComponent] = useState<React.ComponentType | null>(null);
@@ -20,12 +22,22 @@ export default function VideoPreview() {
   const playerRef = useRef<PlayerRef>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ renderedFrames: number; encodedFrames: number } | null>(null);
+  const [showVideoSettings, setShowVideoSettings] = useState(false);
+  const [tempVideoConfig, setTempVideoConfig] = useState(videoConfig);
   
-  // 视频配置
-  const durationInFrames = 300;
-  const fps = 30;
-  const width = 1920;
-  const height = 1080;
+  // 使用可配置的视频设置
+  const { durationInFrames, fps, width, height } = videoConfig;
+  
+  // 当 videoConfig 变化时，更新临时配置
+  useEffect(() => {
+    setTempVideoConfig(videoConfig);
+  }, [videoConfig]);
+  
+  // 保存视频配置
+  const handleSaveVideoConfig = useCallback(() => {
+    setVideoConfig(tempVideoConfig);
+    setShowVideoSettings(false);
+  }, [tempVideoConfig, setVideoConfig]);
 
   const compileAndValidate = useCallback(
     async (codeToCompile: string) => {
@@ -420,13 +432,26 @@ export default function VideoPreview() {
     <div className="h-full flex flex-col bg-gray-950">
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-medium text-gray-300">Video Preview</h3>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium text-gray-300">Video Preview</h3>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowVideoSettings(!showVideoSettings)}
+                className="h-6 px-2"
+              >
+                <Settings className="w-3 h-3" />
+              </Button>
+            </div>
             {component && (
               <p className="text-xs text-gray-500 mt-1">
                 Component: {component.displayName || component.name || 'Unknown'}
               </p>
             )}
+            <p className="text-xs text-gray-500 mt-1">
+              时长: {(durationInFrames / fps).toFixed(1)}秒 ({durationInFrames} 帧 @ {fps} fps) | 分辨率: {width}×{height}
+            </p>
             {isExporting && exportProgress && (
               <div className="mt-2">
                 <div className="flex items-center gap-2">

@@ -9,10 +9,20 @@ localforage.config({
   description: 'Store for video code and settings',
 });
 
+export interface VideoConfig {
+  durationInFrames: number;
+  fps: number;
+  width: number;
+  height: number;
+}
+
 export interface CodeState {
   code: string;
   setCode: (code: string) => void;
   resetCode: () => void;
+  // 视频配置
+  videoConfig: VideoConfig;
+  setVideoConfig: (config: Partial<VideoConfig>) => void;
 }
 
 const DEFAULT_CODE = `// React 和 remotion 会自动注入，无需导入
@@ -46,12 +56,25 @@ export const MyVideo = () => {
 };
 `;
 
+const DEFAULT_VIDEO_CONFIG: VideoConfig = {
+  durationInFrames: 300, // 10 秒 @ 30fps
+  fps: 30,
+  width: 1920,
+  height: 1080,
+};
+
 export const useCodeStore = create<CodeState>()(
   persist(
     (set) => ({
       code: DEFAULT_CODE,
       setCode: (code: string) => set({ code }),
       resetCode: () => set({ code: DEFAULT_CODE }),
+      // 视频配置
+      videoConfig: DEFAULT_VIDEO_CONFIG,
+      setVideoConfig: (config: Partial<VideoConfig>) =>
+        set((state) => ({
+          videoConfig: { ...state.videoConfig, ...config },
+        })),
     }),
     {
       name: 'code-storage',
