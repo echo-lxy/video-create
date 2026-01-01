@@ -102,7 +102,7 @@ function DraggableTab({
       )}
     >
       {isActive && (
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#007acc]" />
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#007acc] z-10" />
       )}
       {/* 拖动句柄 */}
       <div
@@ -128,17 +128,23 @@ function DraggableTab({
 }
 
 export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaultActiveTab }: EditorAreaProps) {
-  const [activeTab, setActiveTab] = useState<TabId>(defaultActiveTab || activeTabs[0] || 'editor');
-  const [orderedTabs, setOrderedTabs] = useState<TabId[]>(activeTabs);
-  const [editorSize, setEditorSize] = useState(60); // 编辑器占比（百分比）- 默认60%
+  // 默认激活编辑器标签
+  const [activeTab, setActiveTab] = useState<TabId>(defaultActiveTab || 'editor');
+  const [orderedTabs, setOrderedTabs] = useState<TabId[]>(activeTabs.length > 0 ? activeTabs : ['editor']);
+  const [editorSize, setEditorSize] = useState(60); // 编辑器占比（百分比）- 默认60%（编辑器在上）
   
   // 同步 orderedTabs 与 activeTabs
   useEffect(() => {
+    if (activeTabs.length === 0) {
+      setOrderedTabs(['editor']);
+      return;
+    }
     // 保持 activeTabs 的顺序，但保留 orderedTabs 中已有的顺序
     const newOrdered = activeTabs.filter(id => orderedTabs.includes(id));
     const newTabs = activeTabs.filter(id => !orderedTabs.includes(id));
-    setOrderedTabs([...newOrdered, ...newTabs]);
-  }, [activeTabs]);
+    const updated = [...newOrdered, ...newTabs];
+    setOrderedTabs(updated);
+  }, [activeTabs, orderedTabs]);
   
   // 当activeTabs变化时，更新activeTab
   useEffect(() => {
@@ -201,8 +207,8 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
 
   return (
     <div className="w-full h-full flex flex-col bg-[#1e1e1e] overflow-hidden">
-      {/* 标签栏 - VSCode 风格，支持拖动 */}
-      <div className="h-9 flex-shrink-0 bg-[#2d2d30] border-b border-[#3e3e42] flex items-end overflow-x-auto">
+      {/* 标签栏 - VSCode 风格，支持拖动，使用相对定位 */}
+      <div className="h-9 flex-shrink-0 bg-[#2d2d30] border-b border-[#3e3e42] flex items-end overflow-x-auto relative z-10">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}

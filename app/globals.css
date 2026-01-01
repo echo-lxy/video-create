@@ -78,6 +78,25 @@
   position: relative;
 }
 
+/* 工具栏和标签栏始终可见，不被覆盖 */
+.tab-bar,
+.toolbar {
+  position: relative !important;
+  z-index: 10 !important;
+  flex-shrink: 0 !important;
+}
+
+/* 确保拖动时所有元素可见 */
+.allotment.dragging .split-view-view {
+  pointer-events: auto !important;
+}
+
+/* 标签拖动时的样式 */
+.dragging-tab {
+  opacity: 0.5;
+  z-index: 1000;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

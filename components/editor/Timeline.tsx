@@ -191,15 +191,15 @@ export default function Timeline({ playerRef }: TimelineProps) {
   const playheadPosition = (currentFrame / fps) * pixelsPerSecond;
 
   return (
-    <div className="h-full flex flex-col bg-[#1e1e1e] border-t border-[#3e3e42]">
-      {/* 控制栏 */}
-      <div className="h-12 bg-[#252526] border-b border-[#3e3e42] flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
+    <div className="w-full h-full flex flex-col bg-[#1e1e1e] border-t border-[#3e3e42] relative overflow-hidden">
+      {/* 控制栏 - 使用相对定位，确保始终可见 */}
+      <div className="h-12 flex-shrink-0 bg-[#252526] border-b border-[#3e3e42] flex items-center justify-between px-4 relative z-10">
+        <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
           <Button
             size="sm"
             variant="ghost"
             onClick={togglePlay}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 flex-shrink-0"
           >
             {isPlaying ? (
               <Pause className="w-4 h-4 text-[#cccccc]" />
@@ -212,7 +212,7 @@ export default function Timeline({ playerRef }: TimelineProps) {
             size="sm"
             variant="ghost"
             onClick={() => seekToFrame(Math.max(0, currentFrame - fps))}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 flex-shrink-0"
             title="后退 1 秒"
           >
             <SkipBack className="w-4 h-4 text-[#cccccc]" />
@@ -222,19 +222,19 @@ export default function Timeline({ playerRef }: TimelineProps) {
             size="sm"
             variant="ghost"
             onClick={() => seekToFrame(Math.min(durationInFrames - 1, currentFrame + fps))}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 flex-shrink-0"
             title="前进 1 秒"
           >
             <SkipForward className="w-4 h-4 text-[#cccccc]" />
           </Button>
 
-          <div className="ml-4 text-sm text-[#cccccc] font-mono">
+          <div className="ml-2 text-sm text-[#cccccc] font-mono whitespace-nowrap flex-shrink-0">
             {formatTime(currentFrame)} / {formatTime(durationInFrames - 1)}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="text-xs text-[#969696]">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="text-xs text-[#969696] whitespace-nowrap">
             速度: {playbackSpeed}x
           </div>
           
@@ -242,13 +242,13 @@ export default function Timeline({ playerRef }: TimelineProps) {
             size="sm"
             variant="ghost"
             onClick={() => setZoom(Math.max(0.1, zoom - 0.1))}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 flex-shrink-0"
             title="缩小"
           >
             <ZoomOut className="w-4 h-4 text-[#cccccc]" />
           </Button>
           
-          <div className="text-xs text-[#969696] w-16 text-center">
+          <div className="text-xs text-[#969696] w-12 text-center flex-shrink-0">
             {zoom.toFixed(1)}x
           </div>
           
@@ -256,7 +256,7 @@ export default function Timeline({ playerRef }: TimelineProps) {
             size="sm"
             variant="ghost"
             onClick={() => setZoom(Math.min(10, zoom + 0.1))}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 flex-shrink-0"
             title="放大"
           >
             <ZoomIn className="w-4 h-4 text-[#cccccc]" />
@@ -267,7 +267,7 @@ export default function Timeline({ playerRef }: TimelineProps) {
       {/* 时间轴 */}
       <div
         ref={timelineRef}
-        className="flex-1 relative overflow-hidden bg-[#1e1e1e] cursor-pointer"
+        className="flex-1 relative overflow-hidden bg-[#1e1e1e] cursor-pointer min-h-0"
         onClick={handleTimelineClick}
         onWheel={handleScroll}
       >
