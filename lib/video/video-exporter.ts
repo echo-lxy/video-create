@@ -61,6 +61,8 @@ export async function exportVideo(
       videoBitrate: options.quality || 'high',
       // 容器格式：mp4（H.264/H.265）或 webm（VP8/VP9/AV1）
       container: (options.codec === 'vp8' || options.codec === 'vp9' || options.codec === 'av1') ? 'webm' : 'mp4',
+      // 禁用音频（我们的视频没有音频轨道）
+      muted: true,
       // 进度回调
       onProgress: options.onProgress || null,
       // 硬件加速：优先使用硬件加速（如果可用）
