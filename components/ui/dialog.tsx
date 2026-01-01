@@ -93,3 +93,15 @@ export function DialogTitle({ children, className, ...props }: DialogTitleProps)
   );
 }
 
+interface DialogFooterProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+}
+
+export function DialogFooter({ children, className, ...props }: DialogFooterProps) {
+  return (
+    <div className={cn('p-6 pt-4 flex justify-end gap-2', className)} {...props}>
+      {children}
+    </div>
+  );
+}
+

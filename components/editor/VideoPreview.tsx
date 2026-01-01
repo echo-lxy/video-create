@@ -8,11 +8,15 @@ import { compileTypeScript } from '@/lib/compiler/code-compiler';
 import { validateCode } from '@/lib/security/code-validator';
 import { Loader2, AlertCircle, Settings } from 'lucide-react';
 import { debounce } from 'lodash-es';
-import VideoDebugControls from './VideoDebugControls';
-import { exportVideo } from '@/lib/video/video-exporter';
+import Timeline from './Timeline';
+import ExportDialog, { ExportSettings } from './ExportDialog';
+import { exportWithSettings } from '@/lib/video/export-formats';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ErrorBoundary } from './ErrorBoundary';
+import { SafeComponentWrapper } from './SafeComponentWrapper';
+import { useTimelineStore } from '@/lib/store/timeline-store';
+import { Download } from 'lucide-react';
 
 export default function VideoPreview() {
   const { code, videoConfig, setVideoConfig } = useCodeStore();
@@ -25,10 +29,17 @@ export default function VideoPreview() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ renderedFrames: number; encodedFrames: number } | null>(null);
   const [showVideoSettings, setShowVideoSettings] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const [tempVideoConfig, setTempVideoConfig] = useState(videoConfig);
+  const { setDuration } = useTimelineStore();
   
   // 使用可配置的视频设置
   const { durationInFrames, fps, width, height } = videoConfig;
+
+  // 同步视频配置到 Timeline
+  useEffect(() => {
+    setDuration(durationInFrames, fps);
+  }, [durationInFrames, fps, setDuration]);
   
   // 当 videoConfig 变化时，更新临时配置
   useEffect(() => {
@@ -277,6 +288,28 @@ export default function VideoPreview() {
           isFunction: typeof ComponentClass === 'function',
         });
 
+        // 验证组件是否有效
+        if (typeof ComponentClass !== 'function') {
+          throw new Error(
+            `MyVideo is not a valid React component. Got: ${typeof ComponentClass}. ` +
+            'Make sure your code exports a function component named "MyVideo".'
+          );
+        }
+
+        // 测试组件是否可以安全创建（不实际渲染，只检查）
+        try {
+          // 创建一个测试实例来验证组件
+          const testProps = {};
+          const testElement = React.createElement(ComponentClass, testProps);
+          
+          if (!testElement || typeof testElement !== 'object') {
+            throw new Error('Component creation test failed');
+          }
+        } catch (testError: any) {
+          console.warn('Component validation warning:', testError);
+          // 不阻止，继续使用组件（可能只是测试环境问题）
+        }
+
         // 使用 useMemo 包装组件，确保组件引用稳定，避免 React Hooks 顺序问题
         // 直接设置组件，但使用稳定的引用
         const StableComponent = ComponentClass;
@@ -354,15 +387,46 @@ export default function VideoPreview() {
   }
 
   // 使用 useMemo 确保组件引用稳定，避免 React Hooks 顺序问题
-  // 必须在所有条件返回之前调用，确保 Hooks 调用顺序一致
-  const stableComponent = useMemo(() => {
+  // 创建一个安全的组件包装器，确保错误不会传播
+  const safeComponent = useMemo(() => {
     if (!component) return null;
-    // 返回一个稳定的组件引用
-    return component;
+    
+    // 创建一个包装组件，用错误边界保护
+    const SafeWrappedComponent: React.ComponentType = (props: any) => {
+      return (
+        <SafeComponentWrapper
+          component={component}
+          onError={(error: Error) => {
+            console.error('SafeComponentWrapper caught error in wrapped component:', error);
+            setRenderError(error.message);
+          }}
+          fallback={
+            <div className="w-full h-full flex items-center justify-center bg-[#1e1e1e] text-red-400">
+              <div className="text-center">
+                <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-sm">组件渲染失败</p>
+                <p className="text-xs text-[#969696] mt-1">
+                  请检查代码并修复错误
+                </p>
+              </div>
+            </div>
+          }
+          {...props}
+        />
+      );
+    };
+    
+    // 复制组件名称以便调试
+    SafeWrappedComponent.displayName = component.displayName || component.name || 'SafeWrappedComponent';
+    
+    return SafeWrappedComponent;
   }, [component]);
 
-  // 处理视频导出 - 必须在所有条件返回之前定义，确保 Hooks 调用顺序一致
-  const handleExport = useCallback(async () => {
+  // 保持向后兼容
+  const stableComponent = safeComponent;
+
+  // 处理视频导出 - 使用新的导出对话框
+  const handleExport = useCallback(async (settings: ExportSettings) => {
     if (!stableComponent) {
       alert('请先编译代码，生成视频组件');
       return;
@@ -370,65 +434,37 @@ export default function VideoPreview() {
 
     setIsExporting(true);
     setExportProgress({ renderedFrames: 0, encodedFrames: 0 });
+    
     try {
-      await exportVideo({
-        component: stableComponent,
-        durationInFrames,
-        fps,
-        width,
-        height,
-        quality: 'high', // 高质量导出
-        codec: 'h264', // H.264 编码，最佳兼容性
-        onProgress: (progress) => {
-          setExportProgress(progress);
-          const progressPercent = Math.round((progress.encodedFrames / durationInFrames) * 100);
-          console.log(`导出进度: ${progressPercent}% (已渲染: ${progress.renderedFrames}/${durationInFrames}, 已编码: ${progress.encodedFrames}/${durationInFrames})`);
+      await exportWithSettings(
+        stableComponent,
+        settings,
+        {
+          durationInFrames,
+          fps,
+          width,
+          height,
         },
-      }, playerRef);
+        (progress) => {
+          setExportProgress({
+            renderedFrames: progress.renderedFrames,
+            encodedFrames: progress.encodedFrames,
+          });
+          const progressPercent = Math.round((progress.encodedFrames / progress.totalFrames) * 100);
+          console.log(`导出进度: ${progressPercent}% (${progress.stage})`);
+        }
+      );
+      
       setExportProgress(null);
-      alert('视频导出成功！');
+      alert('导出成功！');
     } catch (error: any) {
       console.error('导出失败:', error);
       setExportProgress(null);
-      
-      // 如果是屏幕录制需要用户手势的错误，显示特殊提示
-      if (error.message?.includes('SCREEN_RECORDING_REQUIRES_USER_GESTURE')) {
-        const userMessage = error.message.replace('SCREEN_RECORDING_REQUIRES_USER_GESTURE: ', '');
-        const useScreenRecording = confirm(
-          `${userMessage}\n\n` +
-          `是否现在使用屏幕录制导出视频？\n` +
-          `（点击"确定"后，浏览器会提示您选择要录制的窗口）`
-        );
-        
-        if (useScreenRecording) {
-          // 用户确认后，在当前用户手势上下文中直接调用屏幕录制
-          // 使用 forceScreenRecording 标志，跳过 Remotion 渲染尝试
-          try {
-            setIsExporting(true);
-            await exportVideo({
-              component: stableComponent,
-              durationInFrames,
-              fps,
-              width,
-              height,
-              quality: 'high',
-              codec: 'h264',
-              forceScreenRecording: true, // 强制使用屏幕录制
-            }, playerRef);
-            alert('视频导出成功！');
-          } catch (screenError: any) {
-            alert(`屏幕录制失败: ${screenError.message}`);
-          } finally {
-            setIsExporting(false);
-          }
-        }
-      } else {
-        alert(`视频导出失败: ${error.message}`);
-      }
+      alert(`导出失败: ${error.message}`);
     } finally {
       setIsExporting(false);
     }
-  }, [stableComponent, durationInFrames, fps, width, height, playerRef]);
+  }, [stableComponent, durationInFrames, fps, width, height]);
 
   // 调试信息
   useEffect(() => {
@@ -608,10 +644,9 @@ export default function VideoPreview() {
         <div className="bg-black rounded-lg overflow-hidden shadow-2xl w-full max-w-4xl">
           {stableComponent ? (
             <ErrorBoundary
-              onError={(error, errorInfo) => {
-                console.error('Component render error:', error, errorInfo);
+              onError={(error: Error, errorInfo: React.ErrorInfo) => {
+                console.error('Outer ErrorBoundary caught error:', error, errorInfo);
                 setRenderError(error.message || 'Component render failed');
-                setComponent(null); // 清除有问题的组件
               }}
               fallback={
                 <div className="w-full h-96 flex items-center justify-center text-[#969696]">
@@ -632,6 +667,7 @@ export default function VideoPreview() {
                       size="sm"
                       onClick={() => {
                         setRenderError(null);
+                        setComponent(null);
                         // 触发重新编译
                         const event = new CustomEvent('force-recompile');
                         window.dispatchEvent(event);
@@ -644,6 +680,7 @@ export default function VideoPreview() {
               }
             >
               <div className="w-full" style={{ minHeight: '400px', position: 'relative' }}>
+                {/* Player 使用已经安全包装的组件 */}
                 <Player
                   ref={playerRef}
                   component={stableComponent}
@@ -687,15 +724,36 @@ export default function VideoPreview() {
         </div>
       </div>
       
-      {/* 调试控制栏 */}
+      {/* Timeline */}
       {stableComponent && (
-        <VideoDebugControls
-          playerRef={playerRef}
-          durationInFrames={durationInFrames}
-          fps={fps}
-          onExport={handleExport}
-        />
+        <Timeline playerRef={playerRef} />
       )}
+
+      {/* 导出按钮（在预览区域） */}
+      {stableComponent && (
+        <div className="absolute top-4 right-4 z-20">
+          <Button
+            size="sm"
+            onClick={() => setShowExportDialog(true)}
+            className="bg-[#007acc] hover:bg-[#005a9e] text-white"
+            disabled={isExporting}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            {isExporting ? '导出中...' : '导出'}
+          </Button>
+        </div>
+      )}
+
+      {/* 导出对话框 */}
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        onExport={handleExport}
+        durationInFrames={durationInFrames}
+        fps={fps}
+        width={width}
+        height={height}
+      />
     </div>
   );
 }
