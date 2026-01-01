@@ -188,19 +188,28 @@ export default function VideoPreview() {
 
         // 包装组件以确保 Remotion Player 可以正确使用
         // Remotion 需要组件接受 props 并返回 React 元素
-        const WrappedComponent = (props: any) => {
+        const WrappedComponent = React.forwardRef((props: any, ref: any) => {
           try {
-            return ComponentClass(props);
+            // 确保使用 React.createElement 来创建组件
+            if (typeof ComponentClass === 'function') {
+              return React.createElement(ComponentClass, props);
+            }
+            throw new Error('ComponentClass is not a function');
           } catch (error: any) {
             console.error('Error rendering component:', error);
             return React.createElement('div', {
-              style: { padding: '20px', color: 'red' },
+              style: { padding: '20px', color: 'red', backgroundColor: 'black' },
             }, `Error: ${error.message}`);
           }
-        };
+        });
 
         // 设置显示名称以便调试
         WrappedComponent.displayName = 'MyVideo';
+
+        console.log('✅ Wrapped component created:', {
+          displayName: WrappedComponent.displayName,
+          componentType: typeof WrappedComponent,
+        });
 
         setComponent(() => WrappedComponent);
       } catch (error: any) {
