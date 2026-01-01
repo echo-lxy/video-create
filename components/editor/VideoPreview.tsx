@@ -182,9 +182,27 @@ export default function VideoPreview() {
         console.log('✅ Component extracted successfully:', {
           componentType: typeof ComponentClass,
           componentName: ComponentClass.name || 'Anonymous',
+          isFunction: typeof ComponentClass === 'function',
+          componentPreview: ComponentClass.toString().substring(0, 200),
         });
 
-        setComponent(() => ComponentClass);
+        // 包装组件以确保 Remotion Player 可以正确使用
+        // Remotion 需要组件接受 props 并返回 React 元素
+        const WrappedComponent = (props: any) => {
+          try {
+            return ComponentClass(props);
+          } catch (error: any) {
+            console.error('Error rendering component:', error);
+            return React.createElement('div', {
+              style: { padding: '20px', color: 'red' },
+            }, `Error: ${error.message}`);
+          }
+        };
+
+        // 设置显示名称以便调试
+        WrappedComponent.displayName = 'MyVideo';
+
+        setComponent(() => WrappedComponent);
       } catch (error: any) {
         console.error('❌ Component extraction failed:', error);
         setCompilationError(error.message || 'Unknown error');
