@@ -34,46 +34,57 @@ export default function VideoEditor() {
     }, 100);
 
     const handleError = (event: ErrorEvent) => {
-      console.error('VideoEditor error:', event.error);
       const errorMessage = event.error?.message || event.message || 'Unknown error';
 
+      // 过滤已知的、不影响功能的错误
       if (
         errorMessage.includes('BarBarToken') ||
         errorMessage.includes('monaco') ||
         errorMessage.includes('Monaco') ||
         errorMessage.includes('chunk') ||
-        errorMessage.includes('Loading')
+        errorMessage.includes('Loading') ||
+        errorMessage.includes('ResizeObserver') ||
+        errorMessage.includes('favicon')
       ) {
-        console.warn('Component loading error (may be safe to ignore):', errorMessage);
+        // 静默忽略这些已知错误
+        event.preventDefault();
+        event.stopPropagation();
         return;
       }
 
+      // 只有真正的错误才设置状态
+      console.error('VideoEditor error:', event.error);
       setError(errorMessage);
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      console.error('Unhandled promise rejection:', event.reason);
       const errorMessage = event.reason?.message || String(event.reason) || 'Unknown error';
 
+      // 过滤已知的、不影响功能的错误
       if (
         errorMessage.includes('BarBarToken') ||
         errorMessage.includes('monaco') ||
         errorMessage.includes('chunk') ||
-        errorMessage.includes('Loading')
+        errorMessage.includes('Loading') ||
+        errorMessage.includes('ResizeObserver')
       ) {
-        console.warn('Component loading rejection (may be safe to ignore):', errorMessage);
+        // 静默忽略这些已知错误
+        event.preventDefault();
         return;
       }
 
+      // 只有真正的错误才记录
+      console.error('Unhandled promise rejection:', event.reason);
       setError(errorMessage);
     };
 
-    window.addEventListener('error', handleError);
+    // 使用捕获阶段确保能捕获所有错误
+    window.addEventListener('error', handleError, true);
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
     return () => {
       clearTimeout(timer);
-      window.removeEventListener('error', handleError);
+      window.removeEventListener('error', handleError, true);
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
   }, []);

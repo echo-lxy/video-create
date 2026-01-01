@@ -54,6 +54,18 @@ export default function RootLayout({
                     .catch(() => console.log('⚠️ Service Worker registration failed'));
                 });
               }
+              
+              // 抑制 ResizeObserver 警告（浏览器已知问题）
+              // 参考：https://github.com/WICG/resize-observer/issues/38
+              const originalError = console.error;
+              console.error = function(...args) {
+                const message = args.join(' ');
+                if (message.includes('ResizeObserver loop') || 
+                    message.includes('ResizeObserver loop completed with undelivered notifications')) {
+                  return; // 静默忽略
+                }
+                originalError.apply(console, args);
+              };
             `,
           }}
         />

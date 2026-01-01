@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { ErrorBoundary } from '@/components/editor/ErrorBoundary';
+import { initGlobalErrorHandler } from '@/lib/utils/error-handler';
 
 // 调试模式：在 URL 中添加 ?debug=1 来显示加载状态
 const isDebug = typeof window !== 'undefined' && 
@@ -70,41 +71,11 @@ function LoadingComponent() {
 // 全局错误处理（用于捕获非React错误）
 function GlobalErrorHandler({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    const handleError = (event: ErrorEvent) => {
-      // 过滤掉一些已知的可以忽略的错误
-      const errorMessage = event.error?.message || event.message || '';
-      if (
-        errorMessage.includes('BarBarToken') ||
-        errorMessage.includes('monaco') ||
-        errorMessage.includes('chunk') ||
-        errorMessage.includes('Loading')
-      ) {
-        console.warn('Ignored error:', errorMessage);
-        return;
-      }
-      console.error('Global error:', event.error);
-    };
-
-    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const errorMessage = event.reason?.message || String(event.reason) || '';
-      if (
-        errorMessage.includes('BarBarToken') ||
-        errorMessage.includes('monaco') ||
-        errorMessage.includes('chunk') ||
-        errorMessage.includes('Loading')
-      ) {
-        console.warn('Ignored rejection:', errorMessage);
-        return;
-      }
-      console.error('Unhandled promise rejection:', event.reason);
-    };
-
-    window.addEventListener('error', handleError);
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    // 初始化全局错误处理（抑制 ResizeObserver 等已知警告）
+    const cleanup = initGlobalErrorHandler();
     
     return () => {
-      window.removeEventListener('error', handleError);
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      if (cleanup) cleanup();
     };
   }, []);
 
