@@ -1,10 +1,54 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import Editor, { Monaco } from '@monaco-editor/react';
+import Editor, { Monaco, loader } from '@monaco-editor/react';
 import { useCodeStore } from '@/lib/store/code-store';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { Loader2 } from 'lucide-react';
+
+// 配置 Monaco Editor 使用本地资源（优化版）
+if (typeof window !== 'undefined') {
+  const isProduction = window.location.hostname === 'echo-lxy.github.io' || 
+    process.env.NODE_ENV === 'production';
+  const basePath = isProduction ? '/video-create' : '';
+  const monacoPath = `${basePath}/monaco/vs`;
+  
+  // 先尝试使用本地资源
+  loader.config({ 
+    paths: { 
+      vs: monacoPath 
+    } 
+  });
+  
+  // 快速检查本地资源（2秒超时）
+  const checkLocal = async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+      const response = await fetch(`${monacoPath}/loader.js`, { 
+        method: 'HEAD',
+        signal: controller.signal,
+        cache: 'no-cache'
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        console.log('⚠️ Monaco Editor local files not found, using CDN');
+        loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+      } else {
+        console.log('✅ Using local Monaco Editor (faster!)');
+      }
+    } catch {
+      // 检查失败，使用本地路径（可能在开发环境）
+      console.log('ℹ️ Monaco Editor: Using local path');
+    }
+  };
+  
+  // 异步检查，不阻塞
+  checkLocal();
+}
 
 export default function CodeEditor() {
   const { code, setCode } = useCodeStore();
@@ -67,8 +111,27 @@ export default function CodeEditor() {
   function handleEditorWillMount(monaco: Monaco) {
     try {
       // 在编辑器挂载前进行一些初始化
+      // 延迟加载 TypeScript 服务以加快初始加载
       if (monaco?.languages?.typescript) {
-        console.log('Monaco Editor will mount, TypeScript service available');
+        // 延迟配置 TypeScript，减少初始加载时间
+        setTimeout(() => {
+          try {
+            monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+              target: monaco.languages.typescript.ScriptTarget.ES2020,
+              allowNonTsExtensions: true,
+              moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+              module: monaco.languages.typescript.ModuleKind.ESNext,
+              noEmit: true,
+              esModuleInterop: true,
+              jsx: monaco.languages.typescript.JsxEmit.React,
+              reactNamespace: 'React',
+              allowJs: true,
+              typeRoots: ['node_modules/@types'],
+            });
+          } catch (e) {
+            console.warn('Failed to configure TypeScript defaults:', e);
+          }
+        }, 1000); // 延迟 1 秒配置
       }
     } catch (error: any) {
       console.error('Error in handleEditorWillMount:', error);
@@ -110,13 +173,23 @@ export default function CodeEditor() {
           automaticLayout: true,
           tabSize: 2,
           wordWrap: 'on',
-          // 禁用一些可能导致问题的功能，加快加载
+          // 深度优化：禁用所有非必需功能以加快加载
           quickSuggestions: false,
           suggestOnTriggerCharacters: false,
           acceptSuggestionOnEnter: 'off',
-          // 减少初始加载的功能
           hover: { enabled: false },
           parameterHints: { enabled: false },
+          // 禁用更多功能以加快加载
+          codeLens: false,
+          colorDecorators: false,
+          folding: true, // 保留代码折叠（常用功能）
+          links: false,
+          occurrencesHighlight: false,
+          renderWhitespace: 'none',
+          selectionHighlight: false,
+          // 最小化 TypeScript 服务
+          formatOnPaste: false,
+          formatOnType: false,
         }}
         onValidate={(markers) => {
           // 静默处理验证错误，避免阻塞

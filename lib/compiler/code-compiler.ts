@@ -6,8 +6,44 @@ export async function initializeCompiler() {
   if (initialized) return;
 
   try {
+    // 优先使用本地资源，如果不存在则回退到 CDN
+    const isProduction = typeof window !== 'undefined' && 
+      (window.location.hostname === 'echo-lxy.github.io' || 
+       process.env.NODE_ENV === 'production');
+    const basePath = isProduction ? '/video-create' : '';
+    
+    // 尝试使用本地资源
+    const localWasmURL = `${basePath}/esbuild/esbuild.wasm`;
+    
+    // 检查本地资源是否存在（使用 HEAD 请求，快速检查）
+    let wasmURL = localWasmURL;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2秒超时
+      
+      const response = await fetch(localWasmURL, { 
+        method: 'HEAD',
+        signal: controller.signal,
+        cache: 'no-cache'
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        // 本地资源不存在，使用 CDN
+        wasmURL = 'https://unpkg.com/esbuild-wasm@0.19.12/esbuild.wasm';
+        console.log('⚠️ Using CDN for esbuild-wasm (local file not found)');
+      } else {
+        console.log('✅ Using local esbuild-wasm (faster!)');
+      }
+    } catch {
+      // 检查失败或超时，使用 CDN
+      wasmURL = 'https://unpkg.com/esbuild-wasm@0.19.12/esbuild.wasm';
+      console.log('⚠️ Using CDN for esbuild-wasm (fallback)');
+    }
+
     await esbuild.initialize({
-      wasmURL: 'https://unpkg.com/esbuild-wasm@0.19.12/esbuild.wasm',
+      wasmURL,
     });
     initialized = true;
   } catch (error) {

@@ -1,0 +1,5 @@
+# 确保 WASM 文件被正确识别
+*.wasm binary
+*.woff binary
+*.woff2 binary
+

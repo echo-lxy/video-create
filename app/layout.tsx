@@ -14,29 +14,41 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const basePath = isProduction ? '/video-create' : '';
+  
   return (
     <html lang="zh-CN" className="dark">
       <head>
-        {/* 预加载关键资源 */}
+        {/* 预加载本地资源（如果存在） */}
         <link
           rel="preload"
-          href="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"
-          as="script"
-          crossOrigin="anonymous"
-        />
-        <link
-          rel="preload"
-          href="https://unpkg.com/esbuild-wasm@0.19.12/esbuild.wasm"
+          href={`${basePath}/esbuild/esbuild.wasm`}
           as="fetch"
           crossOrigin="anonymous"
         />
         <link
-          rel="dns-prefetch"
-          href="https://cdn.jsdelivr.net"
+          rel="preload"
+          href={`${basePath}/monaco/vs/loader.js`}
+          as="script"
+          crossOrigin="anonymous"
         />
-        <link
-          rel="dns-prefetch"
-          href="https://unpkg.com"
+        {/* DNS 预解析 */}
+        <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+        <link rel="dns-prefetch" href="https://unpkg.com" />
+        {/* Service Worker 注册（客户端） */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('${basePath}/sw.js')
+                    .then(() => console.log('✅ Service Worker registered'))
+                    .catch(() => console.log('⚠️ Service Worker registration failed'));
+                });
+              }
+            `,
+          }}
         />
       </head>
       <body className={inter.className}>{children}</body>

@@ -1,13 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { Button } from '@/components/ui/button';
-import { Code2, MessageSquare, Play, AlertCircle } from 'lucide-react';
-// 直接导入，避免动态导入导致的 chunk 加载问题
-import AIChatPanel from '@/components/ai/AIChatPanel';
-import CodeEditor from './CodeEditor';
-import VideoPreview from './VideoPreview';
+import { Code2, MessageSquare, Play, AlertCircle, Loader2 } from 'lucide-react';
+
+// 懒加载组件，按需加载以加快初始加载
+const AIChatPanel = lazy(() => import('@/components/ai/AIChatPanel').then(m => ({ default: m.default })));
+const CodeEditor = lazy(() => import('./CodeEditor').then(m => ({ default: m.default })));
+const VideoPreview = lazy(() => import('./VideoPreview').then(m => ({ default: m.default })));
+
+// 加载占位符
+const LoadingPlaceholder = ({ text }: { text: string }) => (
+  <div className="h-full flex items-center justify-center bg-gray-950">
+    <div className="text-center text-gray-400 text-sm">
+      <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+      <p>{text}</p>
+    </div>
+  </div>
+);
 
 export default function VideoEditor() {
   const { showAIPanel, showCodeEditor, toggleAIPanel, toggleCodeEditor } =
@@ -123,7 +134,9 @@ export default function VideoEditor() {
         {/* Left: AI Chat Panel */}
         {showAIPanel && (
           <div className="w-96 border-r border-gray-800 flex-shrink-0">
-            <AIChatPanel />
+            <Suspense fallback={<LoadingPlaceholder text="Loading AI Panel..." />}>
+              <AIChatPanel />
+            </Suspense>
           </div>
         )}
 
@@ -131,11 +144,15 @@ export default function VideoEditor() {
         <div className="flex-1 flex flex-col min-w-0">
           {showCodeEditor && (
             <div className="h-1/2 border-b border-gray-800">
-              <CodeEditor />
+              <Suspense fallback={<LoadingPlaceholder text="Loading Code Editor..." />}>
+                <CodeEditor />
+              </Suspense>
             </div>
           )}
           <div className={showCodeEditor ? 'h-1/2' : 'h-full'}>
-            <VideoPreview />
+            <Suspense fallback={<LoadingPlaceholder text="Loading Preview..." />}>
+              <VideoPreview />
+            </Suspense>
           </div>
         </div>
       </div>
