@@ -16,7 +16,10 @@ export default function VideoEditor() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setMounted(true);
+    // 延迟设置 mounted，给组件一些时间初始化
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 100);
     
     // 捕获全局错误
     const handleError = (event: ErrorEvent) => {
@@ -26,9 +29,11 @@ export default function VideoEditor() {
       // 过滤掉一些已知的 Monaco Editor 内部错误
       if (errorMessage.includes('BarBarToken') || 
           errorMessage.includes('monaco') ||
-          errorMessage.includes('Monaco')) {
-        console.warn('Monaco Editor internal error (may be safe to ignore):', errorMessage);
-        return; // 不显示这些错误，它们通常是内部的
+          errorMessage.includes('Monaco') ||
+          errorMessage.includes('chunk') ||
+          errorMessage.includes('Loading')) {
+        console.warn('Component loading error (may be safe to ignore):', errorMessage);
+        return; // 不显示这些错误，它们通常是加载相关的
       }
       
       setError(errorMessage);
@@ -38,10 +43,12 @@ export default function VideoEditor() {
       console.error('Unhandled promise rejection:', event.reason);
       const errorMessage = event.reason?.message || String(event.reason) || 'Unknown error';
       
-      // 过滤 Monaco Editor 相关错误
+      // 过滤加载相关错误
       if (errorMessage.includes('BarBarToken') || 
-          errorMessage.includes('monaco')) {
-        console.warn('Monaco Editor promise rejection (may be safe to ignore):', errorMessage);
+          errorMessage.includes('monaco') ||
+          errorMessage.includes('chunk') ||
+          errorMessage.includes('Loading')) {
+        console.warn('Component loading rejection (may be safe to ignore):', errorMessage);
         return;
       }
       
@@ -52,6 +59,7 @@ export default function VideoEditor() {
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
     
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
