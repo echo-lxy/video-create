@@ -1,102 +1,17 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import Editor, { Monaco, loader } from '@monaco-editor/react';
+import Editor, { Monaco } from '@monaco-editor/react';
 import { useCodeStore } from '@/lib/store/code-store';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { Loader2 } from 'lucide-react';
 
-// 配置 Monaco Editor 使用本地资源（优化版 - 优先本地，快速回退）
-if (typeof window !== 'undefined') {
-  // 彻底禁用 source map 加载，避免 404 错误
-  (window as any).__MONACO_EDITOR_SOURCE_MAP__ = false;
-  
-  // 配置 Monaco Environment，禁用 source map 和错误处理
-  const isProduction = window.location.hostname === 'echo-lxy.github.io' || 
-    process.env.NODE_ENV === 'production';
-  const basePath = isProduction ? '/video-create' : '';
-  
-  (window as any).MonacoEnvironment = {
-    ...((window as any).MonacoEnvironment || {}),
-    getWorkerUrl: function(moduleId: string, label: string) {
-      // 根据模块类型返回不同的 worker URL
-      if (label === 'typescript' || label === 'javascript') {
-        return `${basePath}/monaco/vs/language/typescript/tsWorker.js`;
-      }
-      // 默认返回基础 worker（如果存在）
-      return `${basePath}/monaco/vs/base/common/worker/workerMain.js`;
-    },
-    // 禁用 source map
-    sourceMap: false,
-    // 禁用 worker，在主线程运行（避免 worker 加载错误）
-    getWorker: function(moduleId: string, label: string) {
-      // 返回 null 表示在主线程运行，避免 worker 加载错误
-      return null as any;
-    },
-  };
-  
-  // 全局错误处理：忽略 source map 相关错误
-  const originalError = console.error;
-  console.error = function(...args: any[]) {
-    const message = args.join(' ');
-    // 忽略 source map 相关错误
-    if (message.includes('.map') || message.includes('source map') || message.includes('Source Map')) {
-      return;
-    }
-    originalError.apply(console, args);
-  };
-  
-  const monacoPath = `${basePath}/monaco/vs`;
-  
-  // 优先使用本地资源（开发环境直接使用，不检查）
-  if (process.env.NODE_ENV === 'development') {
-    // 开发环境：直接使用本地资源（如果存在）
-    loader.config({ 
-      paths: { 
-        vs: '/monaco/vs' // 开发环境直接使用 /monaco/vs
-      } 
-    });
-    console.log('✅ Monaco Editor: Using local resources (dev mode)');
-  } else {
-    // 生产环境：使用 basePath
-    loader.config({ 
-      paths: { 
-        vs: monacoPath 
-      } 
-    });
-    
-    // 快速检查本地资源（1秒超时，更快）
-    const checkLocal = async () => {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1000); // 缩短到1秒
-        
-        const response = await fetch(`${monacoPath}/loader.js`, { 
-          method: 'HEAD',
-          signal: controller.signal,
-          cache: 'no-cache'
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          // 使用更快的 CDN 镜像（unpkg.com 通常比 jsdelivr 快）
-          console.log('⚠️ Monaco Editor local files not found, using CDN (unpkg.com)');
-          loader.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
-        } else {
-          console.log('✅ Using local Monaco Editor (faster!)');
-        }
-      } catch {
-        // 检查失败，使用更快的 CDN 镜像
-        console.log('⚠️ Monaco Editor: Using CDN fallback (unpkg.com)');
-        loader.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
-      }
-    };
-    
-    // 异步检查，不阻塞
-    checkLocal();
-  }
-}
+// Monaco Editor 现在通过 webpack 插件自动处理，无需手动配置！
+// monaco-editor-webpack-plugin 会自动：
+// 1. 打包所有必需的资源文件
+// 2. 处理 worker 配置
+// 3. 处理路径问题
+// 4. 适配 basePath（GitHub Pages）
 
 export default function CodeEditor() {
   const { code, setCode } = useCodeStore();

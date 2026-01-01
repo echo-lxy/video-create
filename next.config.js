@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 const isProduction = process.env.NODE_ENV === 'production';
 const basePath = isProduction ? '/video-create' : '';
 
@@ -27,6 +28,26 @@ const nextConfig = {
       asyncWebAssembly: true,
     };
 
+    // 只在客户端打包 Monaco Editor（使用 webpack 插件自动处理）
+    if (!isServer) {
+      // 添加 Monaco Editor Webpack Plugin（自动处理所有资源）
+      config.plugins.push(
+        new MonacoWebpackPlugin({
+          languages: ['typescript', 'javascript'],
+          // 自定义 publicPath（适配 GitHub Pages basePath）
+          publicPath: basePath || '/',
+        })
+      );
+
+      // 不要在服务端打包某些模块
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+      };
+    }
+
     // 生产环境优化
     if (!isServer && !dev) {
       // 代码分割优化
@@ -37,13 +58,6 @@ const nextConfig = {
           cacheGroups: {
             default: false,
             vendors: false,
-            // Monaco Editor 单独打包
-            monaco: {
-              name: 'monaco',
-              test: /[\\/]node_modules[\\/](monaco-editor|@monaco-editor)[\\/]/,
-              priority: 20,
-              reuseExistingChunk: true,
-            },
             // esbuild 单独打包
             esbuild: {
               name: 'esbuild',
@@ -53,16 +67,6 @@ const nextConfig = {
             },
           },
         },
-      };
-    }
-
-    // 不要在服务端打包某些模块
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        path: false,
-        crypto: false,
       };
     }
 
