@@ -41,19 +41,33 @@ export default function VideoPreview() {
 
         // 3. 创建组件
         const compiledCode = result.code || '';
+        
+        // 动态导入依赖
+        const ReactModule = await import('react');
+        const remotionModule = await import('remotion');
+        
+        // React 可能是 default export 或命名 export
+        const React = ReactModule.default || ReactModule;
+        const remotion = remotionModule.default || remotionModule;
+
+        // 执行编译后的代码
+        // compiledCode 是一个 IIFE，需要传入 React 和 remotion
         const componentFunc = new Function(
           'React',
           'remotion',
           `
           ${compiledCode}
-          return MyVideo;
+          // IIFE 会立即执行，我们需要捕获返回值
+          // 如果代码已经执行，尝试从全局作用域获取
+          return typeof MyVideo !== 'undefined' ? MyVideo : null;
         `
         );
 
-        // 动态导入依赖
-        const React = await import('react');
-        const remotion = await import('remotion');
         const ComponentClass = componentFunc(React, remotion);
+
+        if (!ComponentClass) {
+          throw new Error('Failed to extract MyVideo component. Make sure your code exports a component named "MyVideo".');
+        }
 
         setComponent(() => ComponentClass);
       } catch (error: any) {
