@@ -16,6 +16,29 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" className="dark">
+      <head>
+        {/* 预加载关键资源 */}
+        <link
+          rel="preload"
+          href="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"
+          as="script"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="https://unpkg.com/esbuild-wasm@0.19.12/esbuild.wasm"
+          as="fetch"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="dns-prefetch"
+          href="https://cdn.jsdelivr.net"
+        />
+        <link
+          rel="dns-prefetch"
+          href="https://unpkg.com"
+        />
+      </head>
       <body className={inter.className}>{children}</body>
     </html>
   );

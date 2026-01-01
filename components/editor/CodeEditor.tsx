@@ -92,6 +92,15 @@ export default function CodeEditor() {
         beforeMount={handleEditorWillMount}
         onMount={handleEditorDidMount}
         theme="vs-dark"
+        loading={
+          <div className="h-full flex items-center justify-center bg-[#1e1e1e] text-gray-400">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+              <p className="text-xs">Loading Monaco Editor...</p>
+              <p className="text-xs text-gray-500 mt-1">~2-3MB, may take 10-20s</p>
+            </div>
+          </div>
+        }
         options={{
           minimap: { enabled: false },
           fontSize: 14,
@@ -101,16 +110,14 @@ export default function CodeEditor() {
           automaticLayout: true,
           tabSize: 2,
           wordWrap: 'on',
-          // 禁用一些可能导致问题的功能
+          // 禁用一些可能导致问题的功能，加快加载
           quickSuggestions: false,
           suggestOnTriggerCharacters: false,
           acceptSuggestionOnEnter: 'off',
+          // 减少初始加载的功能
+          hover: { enabled: false },
+          parameterHints: { enabled: false },
         }}
-        loading={
-          <div className="h-full flex items-center justify-center bg-[#1e1e1e] text-gray-400">
-            <Loader2 className="w-8 h-8 animate-spin" />
-          </div>
-        }
         onValidate={(markers) => {
           // 静默处理验证错误，避免阻塞
           if (markers.length > 0) {
