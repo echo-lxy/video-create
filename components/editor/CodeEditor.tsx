@@ -6,48 +6,61 @@ import { useCodeStore } from '@/lib/store/code-store';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { Loader2 } from 'lucide-react';
 
-// 配置 Monaco Editor 使用本地资源（优化版）
+// 配置 Monaco Editor 使用本地资源（优化版 - 优先本地，快速回退）
 if (typeof window !== 'undefined') {
   const isProduction = window.location.hostname === 'echo-lxy.github.io' || 
     process.env.NODE_ENV === 'production';
   const basePath = isProduction ? '/video-create' : '';
   const monacoPath = `${basePath}/monaco/vs`;
   
-  // 先尝试使用本地资源
-  loader.config({ 
-    paths: { 
-      vs: monacoPath 
-    } 
-  });
-  
-  // 快速检查本地资源（2秒超时）
-  const checkLocal = async () => {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      
-      const response = await fetch(`${monacoPath}/loader.js`, { 
-        method: 'HEAD',
-        signal: controller.signal,
-        cache: 'no-cache'
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        console.log('⚠️ Monaco Editor local files not found, using CDN');
-        loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
-      } else {
-        console.log('✅ Using local Monaco Editor (faster!)');
+  // 优先使用本地资源（开发环境直接使用，不检查）
+  if (process.env.NODE_ENV === 'development') {
+    // 开发环境：直接使用本地资源（如果存在）
+    loader.config({ 
+      paths: { 
+        vs: '/monaco/vs' // 开发环境直接使用 /monaco/vs
+      } 
+    });
+    console.log('✅ Monaco Editor: Using local resources (dev mode)');
+  } else {
+    // 生产环境：使用 basePath
+    loader.config({ 
+      paths: { 
+        vs: monacoPath 
+      } 
+    });
+    
+    // 快速检查本地资源（1秒超时，更快）
+    const checkLocal = async () => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1000); // 缩短到1秒
+        
+        const response = await fetch(`${monacoPath}/loader.js`, { 
+          method: 'HEAD',
+          signal: controller.signal,
+          cache: 'no-cache'
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          // 使用更快的 CDN 镜像（unpkg.com 通常比 jsdelivr 快）
+          console.log('⚠️ Monaco Editor local files not found, using CDN (unpkg.com)');
+          loader.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
+        } else {
+          console.log('✅ Using local Monaco Editor (faster!)');
+        }
+      } catch {
+        // 检查失败，使用更快的 CDN 镜像
+        console.log('⚠️ Monaco Editor: Using CDN fallback (unpkg.com)');
+        loader.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
       }
-    } catch {
-      // 检查失败，使用本地路径（可能在开发环境）
-      console.log('ℹ️ Monaco Editor: Using local path');
-    }
-  };
-  
-  // 异步检查，不阻塞
-  checkLocal();
+    };
+    
+    // 异步检查，不阻塞
+    checkLocal();
+  }
 }
 
 export default function CodeEditor() {
