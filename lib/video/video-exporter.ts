@@ -32,18 +32,28 @@ export async function exportVideo(
     
     // 方案 1: 尝试使用 WebCodecs API（最佳方案）
     if (supportsWebCodecs() && playerRef?.current) {
-      console.log('使用 WebCodecs API 导出视频...');
-      return await exportWithWebCodecs(options, playerRef.current);
+      try {
+        console.log('尝试使用 WebCodecs API 导出视频...');
+        return await exportWithWebCodecs(options, playerRef.current);
+      } catch (error: any) {
+        console.warn('WebCodecs API 方案失败，回退到屏幕录制:', error.message);
+        // 继续尝试其他方案
+      }
     }
 
     // 方案 2: 尝试使用 Canvas + MediaRecorder
     if (playerRef?.current) {
-      console.log('使用 Canvas + MediaRecorder 导出视频...');
-      return await exportWithCanvas(options, playerRef.current);
+      try {
+        console.log('尝试使用 Canvas + MediaRecorder 导出视频...');
+        return await exportWithCanvas(options, playerRef.current);
+      } catch (error: any) {
+        console.warn('Canvas 方案失败，回退到屏幕录制:', error.message);
+        // 继续尝试其他方案
+      }
     }
 
-    // 方案 3: 回退到屏幕录制
-    console.log('使用屏幕录制导出视频（备用方案）...');
+    // 方案 3: 回退到屏幕录制（当前唯一可用的方案）
+    console.log('使用屏幕录制导出视频（当前可用方案）...');
     return await startScreenRecording(options);
     
   } catch (error: any) {
@@ -63,178 +73,32 @@ function supportsWebCodecs(): boolean {
 
 /**
  * 使用 WebCodecs API 导出视频
+ * 注意：当前实现需要从 Remotion Player 获取帧图像
+ * 如果无法获取，会自动回退到屏幕录制方案
  */
 async function exportWithWebCodecs(
   options: ExportOptions,
   player: any
 ): Promise<void> {
-  const { VideoEncoder, VideoFrame } = window as any;
-  const chunks: BlobPart[] = [];
-  let frameCount = 0;
-  const totalFrames = options.durationInFrames;
-
-  return new Promise((resolve, reject) => {
-    const encoder = new VideoEncoder({
-      output: (chunk: any) => {
-        // 将 EncodedVideoChunk 转换为 BlobPart
-        const data = new Uint8Array(chunk.data);
-        chunks.push(data.buffer);
-      },
-      error: (error: Error) => {
-        reject(error);
-      },
-    });
-
-    // 配置编码器（H.264）
-    encoder.configure({
-      codec: 'avc1.42E01E', // H.264 Baseline Profile
-      width: options.width,
-      height: options.height,
-      bitrate: options.quality ? options.quality * 1000000 : 5000000,
-      framerate: options.fps,
-    });
-
-    // 渲染并编码每一帧
-    const encodeFrame = async (frameNumber: number) => {
-      if (frameNumber >= totalFrames) {
-        await encoder.flush();
-        const blob = new Blob(chunks, { type: 'video/mp4' });
-        const filename = `video-${Date.now()}.mp4`;
-        saveAs(blob, filename);
-        resolve();
-        return;
-      }
-
-      try {
-        // 跳转到指定帧
-        player.seekTo(frameNumber);
-        
-        // 等待一帧渲染完成
-        await new Promise(resolve => setTimeout(resolve, 1000 / options.fps));
-
-        // 从 Player 获取 canvas（需要 Remotion Player 支持）
-        // 这里需要根据实际 API 调整
-        const canvas = document.createElement('canvas');
-        canvas.width = options.width;
-        canvas.height = options.height;
-        const ctx = canvas.getContext('2d');
-        
-        if (!ctx) {
-          reject(new Error('无法创建 Canvas 上下文'));
-          return;
-        }
-
-        // 尝试从 Player 获取当前帧图像
-        // 注意：这需要 Remotion Player 提供 API 来获取当前帧的 ImageData
-        // 如果 Player 不支持，回退到 Canvas 方案
-        const imageData = ctx.createImageData(options.width, options.height);
-        const videoFrame = new VideoFrame(imageData, {
-          timestamp: (frameNumber / options.fps) * 1000000,
-          duration: (1 / options.fps) * 1000000,
-        });
-
-        encoder.encode(videoFrame);
-        videoFrame.close();
-
-        frameCount++;
-        if (frameCount % 10 === 0) {
-          console.log(`编码进度: ${frameCount}/${totalFrames} 帧`);
-        }
-
-        requestAnimationFrame(() => {
-          encodeFrame(frameNumber + 1);
-        });
-      } catch (error) {
-        reject(error);
-      }
-    };
-
-    encodeFrame(0);
-  });
+  // WebCodecs API 需要从实际的图像源创建 VideoFrame
+  // 由于 Remotion Player 不直接暴露 canvas，当前无法直接使用 WebCodecs
+  // 抛出错误，让调用者回退到其他方案
+  throw new Error('WebCodecs API 需要从 Remotion Player 获取帧图像，当前暂不支持。请使用屏幕录制方案。');
 }
 
 /**
  * 使用 Canvas + MediaRecorder 导出视频
+ * 注意：当前实现需要从 Remotion Player 获取帧图像
+ * 如果无法获取，会自动回退到屏幕录制方案
  */
 async function exportWithCanvas(
   options: ExportOptions,
   player: any
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = options.width;
-      canvas.height = options.height;
-      const ctx = canvas.getContext('2d');
-      
-      if (!ctx) {
-        reject(new Error('无法创建 Canvas 上下文'));
-        return;
-      }
-
-      const stream = canvas.captureStream(options.fps);
-      const mimeType = getSupportedMimeType();
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: options.quality ? options.quality * 1000000 : 5000000,
-      });
-
-      const chunks: Blob[] = [];
-      
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          chunks.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: mimeType });
-        const filename = `video-${Date.now()}.${getFileExtension(mimeType)}`;
-        saveAs(blob, filename);
-        resolve();
-      };
-
-      mediaRecorder.onerror = (event: any) => {
-        reject(new Error(`录制错误: ${event.error?.message || '未知错误'}`));
-      };
-
-      mediaRecorder.start();
-
-      let currentFrame = 0;
-      const totalFrames = options.durationInFrames;
-      const frameInterval = 1000 / options.fps;
-
-      const renderNextFrame = async () => {
-        if (currentFrame >= totalFrames) {
-          mediaRecorder.stop();
-          return;
-        }
-
-        try {
-          // 跳转到指定帧
-          player.seekTo(currentFrame);
-          await new Promise(resolve => setTimeout(resolve, frameInterval));
-
-          // 渲染当前帧到 canvas
-          // 注意：这需要能够从 Remotion Player 获取当前帧的图像
-          // 如果 Player 不提供此 API，需要回退到屏幕录制
-          
-          currentFrame++;
-          if (currentFrame % 10 === 0) {
-            console.log(`渲染进度: ${currentFrame}/${totalFrames} 帧`);
-          }
-
-          setTimeout(renderNextFrame, frameInterval);
-        } catch (error) {
-          reject(error);
-        }
-      };
-
-      renderNextFrame();
-    } catch (error) {
-      reject(error);
-    }
-  });
+  // Canvas 方案需要能够从 Remotion Player 获取每一帧的图像
+  // 由于 Remotion Player 不直接暴露 canvas，当前无法直接使用此方案
+  // 抛出错误，让调用者回退到屏幕录制
+  throw new Error('Canvas 方案需要从 Remotion Player 获取帧图像，当前暂不支持。请使用屏幕录制方案。');
 }
 
 /**
