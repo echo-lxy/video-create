@@ -8,8 +8,33 @@ import { Loader2 } from 'lucide-react';
 
 // 配置 Monaco Editor 使用本地资源（优化版 - 优先本地，快速回退）
 if (typeof window !== 'undefined') {
-  // 禁用 source map 加载，避免 404 错误
+  // 彻底禁用 source map 加载，避免 404 错误
   (window as any).__MONACO_EDITOR_SOURCE_MAP__ = false;
+  
+  // 配置 Monaco Environment，禁用 source map 和错误处理
+  (window as any).MonacoEnvironment = {
+    ...((window as any).MonacoEnvironment || {}),
+    getWorkerUrl: function(moduleId: string, label: string) {
+      // 返回 worker URL，不包含 .map 文件
+      const isProduction = window.location.hostname === 'echo-lxy.github.io' || 
+        process.env.NODE_ENV === 'production';
+      const basePath = isProduction ? '/video-create' : '';
+      return `${basePath}/monaco/vs/base/common/worker/workerMain.js`;
+    },
+    // 禁用 source map
+    sourceMap: false,
+  };
+  
+  // 全局错误处理：忽略 source map 相关错误
+  const originalError = console.error;
+  console.error = function(...args: any[]) {
+    const message = args.join(' ');
+    // 忽略 source map 相关错误
+    if (message.includes('.map') || message.includes('source map') || message.includes('Source Map')) {
+      return;
+    }
+    originalError.apply(console, args);
+  };
   
   const isProduction = window.location.hostname === 'echo-lxy.github.io' || 
     process.env.NODE_ENV === 'production';

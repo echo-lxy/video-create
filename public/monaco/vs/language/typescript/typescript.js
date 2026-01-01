@@ -1,0 +1,1 @@
+Couldn't find the requested file /min/vs/language/typescript/typescript.js in monaco-editor.

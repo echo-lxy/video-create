@@ -42,6 +42,12 @@ curl -L -o vs/base/common/worker/workerMain.js https://cdn.jsdelivr.net/npm/mona
 echo "  - editor.main.nls.js (国际化语言文件)"
 curl -L -o vs/editor/editor.main.nls.js https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/editor/editor.main.nls.js
 
+echo "  - tsMode.js (TypeScript 模式)"
+curl -L -o vs/language/typescript/tsMode.js https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/language/typescript/tsMode.js
+
+echo "  - typescript.js (TypeScript 语言定义)"
+curl -L -o vs/language/typescript/typescript.js https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/language/typescript/typescript.js
+
 cd ../../
 
 echo ""
