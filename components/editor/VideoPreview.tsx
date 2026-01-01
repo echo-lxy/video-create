@@ -253,36 +253,37 @@ export default function VideoPreview() {
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#1e1e1e] overflow-hidden">
-      {/* 顶部工具栏 - VSCode 风格 */}
-      <div className="h-9 flex-shrink-0 bg-[#252526] border-b border-[#3e3e42] flex items-center justify-between px-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-xs font-medium text-[#cccccc]">视频预览</h3>
+    <div className="w-full h-full flex flex-col bg-[#1e1e1e] overflow-hidden relative">
+      {/* 顶部工具栏 - VSCode 风格，使用相对定位 */}
+      <div className="h-9 flex-shrink-0 bg-[#252526] border-b border-[#3e3e42] flex items-center justify-between px-3 relative z-10">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <h3 className="text-xs font-medium text-[#cccccc] whitespace-nowrap">视频预览</h3>
           {component && (
-            <span className="text-xs text-[#969696]">
+            <span className="text-xs text-[#969696] truncate">
               {component.displayName || component.name || 'Unknown'}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <Button
             size="sm"
             variant="ghost"
             onClick={() => setShowVideoSettings(!showVideoSettings)}
-            className="h-6 px-2 text-xs"
+            className="h-6 px-2 text-xs flex-shrink-0"
           >
             <Settings className="w-3 h-3 mr-1" />
-            设置
+            <span className="hidden sm:inline">设置</span>
           </Button>
           {stableComponent && (
             <Button
               size="sm"
               onClick={() => setShowExportDialog(true)}
-              className="h-6 px-2 text-xs bg-[#007acc] hover:bg-[#005a9e] text-white"
+              className="h-6 px-2 text-xs bg-[#007acc] hover:bg-[#005a9e] text-white flex-shrink-0"
               disabled={isExporting}
             >
               <Download className="w-3 h-3 mr-1" />
-              {isExporting ? '导出中...' : '导出'}
+              <span className="hidden sm:inline">{isExporting ? '导出中...' : '导出'}</span>
+              <span className="sm:hidden">{isExporting ? '...' : '导出'}</span>
             </Button>
           )}
         </div>

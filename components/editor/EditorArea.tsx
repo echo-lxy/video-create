@@ -3,7 +3,24 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { Allotment } from 'allotment';
 import 'allotment/dist/style.css';
-import { Code2, Monitor, X } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Code2, Monitor, X, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Loader2 } from 'lucide-react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -42,11 +59,86 @@ const LoadingPlaceholder = ({ text }: { text: string }) => (
   </div>
 );
 
+// 可拖动的标签组件
+function DraggableTab({ 
+  tab, 
+  isActive, 
+  onClick, 
+  onClose 
+}: { 
+  tab: Tab; 
+  isActive: boolean; 
+  onClick: () => void;
+  onClose: (e: React.MouseEvent) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tab.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const Icon = tab.icon;
+
+  return (
+    <button
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      onClick={onClick}
+      className={cn(
+        'h-full px-4 flex items-center gap-2 border-r border-[#3e3e42] transition-colors group relative',
+        isActive
+          ? 'bg-[#1e1e1e] text-[#cccccc]'
+          : 'bg-[#2d2d30] text-[#969696] hover:bg-[#37373d] hover:text-[#cccccc]'
+      )}
+    >
+      {isActive && (
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#007acc]" />
+      )}
+      {/* 拖动句柄 */}
+      <div
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="w-3 h-3 text-[#969696]" />
+      </div>
+      <Icon className="w-4 h-4 flex-shrink-0" />
+      <span className="text-sm whitespace-nowrap">{tab.label}</span>
+      <button
+        onClick={onClose}
+        className={cn(
+          'ml-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[#3e3e42] flex-shrink-0',
+          isActive ? 'text-[#cccccc]' : 'text-[#969696]'
+        )}
+      >
+        <X className="w-3 h-3" />
+      </button>
+    </button>
+  );
+}
+
 export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaultActiveTab }: EditorAreaProps) {
-  const [activeTab, setActiveTab] = useState<TabId>(defaultActiveTab || activeTabs[0] || 'preview');
-  const [editorSize, setEditorSize] = useState(50); // 编辑器占比（百分比）
-  const [previewSize, setPreviewSize] = useState(50); // 预览占比（百分比）
-  const [splitDirection, setSplitDirection] = useState<'horizontal' | 'vertical'>('horizontal');
+  const [activeTab, setActiveTab] = useState<TabId>(defaultActiveTab || activeTabs[0] || 'editor');
+  const [orderedTabs, setOrderedTabs] = useState<TabId[]>(activeTabs);
+  const [editorSize, setEditorSize] = useState(60); // 编辑器占比（百分比）- 默认60%
+  
+  // 同步 orderedTabs 与 activeTabs
+  useEffect(() => {
+    // 保持 activeTabs 的顺序，但保留 orderedTabs 中已有的顺序
+    const newOrdered = activeTabs.filter(id => orderedTabs.includes(id));
+    const newTabs = activeTabs.filter(id => !orderedTabs.includes(id));
+    setOrderedTabs([...newOrdered, ...newTabs]);
+  }, [activeTabs]);
   
   // 当activeTabs变化时，更新activeTab
   useEffect(() => {
@@ -58,6 +150,28 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
       }
     }
   }, [activeTabs, defaultActiveTab, activeTab]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setOrderedTabs((items) => {
+        const oldIndex = items.indexOf(active.id as TabId);
+        const newIndex = items.indexOf(over.id as TabId);
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+        // 同步到父组件
+        onTabChange(newOrder);
+        return newOrder;
+      });
+    }
+  };
 
   const handleTabClick = (tabId: TabId) => {
     setActiveTab(tabId);
@@ -71,6 +185,7 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
     if (activeTabs.length > 1) {
       const newTabs = activeTabs.filter(id => id !== tabId);
       onTabChange(newTabs);
+      setOrderedTabs(orderedTabs.filter(id => id !== tabId));
       if (activeTab === tabId) {
         setActiveTab(newTabs[0]);
       }
@@ -81,65 +196,59 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
   const hasPreview = activeTabs.includes('preview');
   const showSplit = hasEditor && hasPreview;
 
+  // 获取当前显示的标签（按顺序）
+  const visibleTabs = orderedTabs.filter(id => activeTabs.includes(id));
+
   return (
     <div className="w-full h-full flex flex-col bg-[#1e1e1e] overflow-hidden">
-      {/* 标签栏 - VSCode 风格 */}
+      {/* 标签栏 - VSCode 风格，支持拖动 */}
       <div className="h-9 flex-shrink-0 bg-[#2d2d30] border-b border-[#3e3e42] flex items-end overflow-x-auto">
-        {tabs.map((tab) => {
-          if (!activeTabs.includes(tab.id)) return null;
-          
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          
-          return (
-            <button
-              key={tab.id}
-              onClick={() => handleTabClick(tab.id)}
-              className={cn(
-                'h-full px-4 flex items-center gap-2 border-r border-[#3e3e42] transition-colors group relative',
-                isActive
-                  ? 'bg-[#1e1e1e] text-[#cccccc]'
-                  : 'bg-[#2d2d30] text-[#969696] hover:bg-[#37373d] hover:text-[#cccccc]'
-              )}
-            >
-              {isActive && (
-                <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#007acc]" />
-              )}
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              <span className="text-sm whitespace-nowrap">{tab.label}</span>
-              {activeTabs.length > 1 && (
-                <button
-                  onClick={(e) => handleTabClose(e, tab.id)}
-                  className={cn(
-                    'ml-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[#3e3e42] flex-shrink-0',
-                    isActive ? 'text-[#cccccc]' : 'text-[#969696]'
-                  )}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </button>
-          );
-        })}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={visibleTabs}
+            strategy={horizontalListSortingStrategy}
+          >
+            {visibleTabs.map((tabId) => {
+              const tab = tabs.find(t => t.id === tabId);
+              if (!tab) return null;
+              
+              const isActive = activeTab === tabId;
+              
+              return (
+                <DraggableTab
+                  key={tabId}
+                  tab={tab}
+                  isActive={isActive}
+                  onClick={() => handleTabClick(tabId)}
+                  onClose={(e) => handleTabClose(e, tabId)}
+                />
+              );
+            })}
+          </SortableContext>
+        </DndContext>
       </div>
 
-      {/* 内容区域 - 支持拖动分割 */}
+      {/* 内容区域 - 默认垂直布局（编辑器在上，预览在下） */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {showSplit ? (
-          // 两个标签都打开 - 使用 Allotment 分割
+          // 两个标签都打开 - 使用 Allotment 垂直分割（编辑器在上，预览在下）
           <Allotment
+            vertical
             proportionalLayout={false}
             onChange={(sizes) => {
               if (sizes.length === 2) {
                 const total = sizes[0] + sizes[1];
                 setEditorSize((sizes[0] / total) * 100);
-                setPreviewSize((sizes[1] / total) * 100);
               }
             }}
           >
             <Allotment.Pane 
               minSize={200}
-              preferredSize={editorSize ? `${editorSize}%` : '50%'}
+              preferredSize={editorSize ? `${editorSize}%` : '60%'}
             >
               <div className="w-full h-full">
                 <ErrorBoundary
@@ -152,7 +261,7 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
             </Allotment.Pane>
             <Allotment.Pane 
               minSize={200}
-              preferredSize={previewSize ? `${previewSize}%` : '50%'}
+              preferredSize={editorSize ? `${100 - editorSize}%` : '40%'}
             >
               <div className="w-full h-full">
                 <ErrorBoundary
