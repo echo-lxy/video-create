@@ -21,7 +21,7 @@ export interface ExportOptions {
 
 /**
  * 导出视频（自动选择最佳方案）
- * 优先使用 WebCodecs API，其次 Canvas + MediaRecorder，最后屏幕录制
+ * 当前直接使用屏幕录制方案（WebCodecs 和 Canvas 方案需要从 Player 获取帧图像，暂未实现）
  */
 export async function exportVideo(
   options: ExportOptions,
@@ -30,30 +30,9 @@ export async function exportVideo(
   try {
     console.log('开始导出视频...', options);
     
-    // 方案 1: 尝试使用 WebCodecs API（最佳方案）
-    if (supportsWebCodecs() && playerRef?.current) {
-      try {
-        console.log('尝试使用 WebCodecs API 导出视频...');
-        return await exportWithWebCodecs(options, playerRef.current);
-      } catch (error: any) {
-        console.warn('WebCodecs API 方案失败，回退到屏幕录制:', error.message);
-        // 继续尝试其他方案
-      }
-    }
-
-    // 方案 2: 尝试使用 Canvas + MediaRecorder
-    if (playerRef?.current) {
-      try {
-        console.log('尝试使用 Canvas + MediaRecorder 导出视频...');
-        return await exportWithCanvas(options, playerRef.current);
-      } catch (error: any) {
-        console.warn('Canvas 方案失败，回退到屏幕录制:', error.message);
-        // 继续尝试其他方案
-      }
-    }
-
-    // 方案 3: 回退到屏幕录制（当前唯一可用的方案）
-    console.log('使用屏幕录制导出视频（当前可用方案）...');
+    // 直接使用屏幕录制方案（当前唯一可用且稳定的方案）
+    // WebCodecs 和 Canvas 方案需要从 Remotion Player 获取帧图像，当前暂未实现
+    console.log('使用屏幕录制导出视频...');
     return await startScreenRecording(options);
     
   } catch (error: any) {
@@ -62,44 +41,9 @@ export async function exportVideo(
   }
 }
 
-/**
- * 检查是否支持 WebCodecs API
- */
-function supportsWebCodecs(): boolean {
-  return typeof window !== 'undefined' && 
-         'VideoEncoder' in window && 
-         'VideoFrame' in window;
-}
-
-/**
- * 使用 WebCodecs API 导出视频
- * 注意：当前实现需要从 Remotion Player 获取帧图像
- * 如果无法获取，会自动回退到屏幕录制方案
- */
-async function exportWithWebCodecs(
-  options: ExportOptions,
-  player: any
-): Promise<void> {
-  // WebCodecs API 需要从实际的图像源创建 VideoFrame
-  // 由于 Remotion Player 不直接暴露 canvas，当前无法直接使用 WebCodecs
-  // 抛出错误，让调用者回退到其他方案
-  throw new Error('WebCodecs API 需要从 Remotion Player 获取帧图像，当前暂不支持。请使用屏幕录制方案。');
-}
-
-/**
- * 使用 Canvas + MediaRecorder 导出视频
- * 注意：当前实现需要从 Remotion Player 获取帧图像
- * 如果无法获取，会自动回退到屏幕录制方案
- */
-async function exportWithCanvas(
-  options: ExportOptions,
-  player: any
-): Promise<void> {
-  // Canvas 方案需要能够从 Remotion Player 获取每一帧的图像
-  // 由于 Remotion Player 不直接暴露 canvas，当前无法直接使用此方案
-  // 抛出错误，让调用者回退到屏幕录制
-  throw new Error('Canvas 方案需要从 Remotion Player 获取帧图像，当前暂不支持。请使用屏幕录制方案。');
-}
+// 注意：WebCodecs 和 Canvas 方案已暂时禁用
+// 原因：需要从 Remotion Player 获取帧图像，当前 Remotion Player 不直接暴露此功能
+// 未来改进方向：研究 Remotion Player API 或使用 OffscreenCanvas 实现
 
 /**
  * 使用屏幕录制 API 录制视频
