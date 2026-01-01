@@ -12,34 +12,67 @@ export default function CodeEditor() {
   const editorRef = useRef<any>(null);
 
   function handleEditorDidMount(editor: any, monaco: Monaco) {
-    editorRef.current = editor;
-
-    // 配置 Monaco Editor
-    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-      target: monaco.languages.typescript.ScriptTarget.ES2020,
-      allowNonTsExtensions: true,
-      moduleResolution:
-        monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-      module: monaco.languages.typescript.ModuleKind.ESNext,
-      noEmit: true,
-      esModuleInterop: true,
-      jsx: monaco.languages.typescript.JsxEmit.React,
-      reactNamespace: 'React',
-      allowJs: true,
-      typeRoots: ['node_modules/@types'],
-    });
-
-    // 添加 Remotion 类型提示
-    monaco.languages.typescript.typescriptDefaults.addExtraLib(
-      `
-      declare module 'remotion' {
-        export const AbsoluteFill: any;
-        export const useCurrentFrame: () => number;
-        export const interpolate: (input: number, inputRange: number[], outputRange: number[], options?: any) => number;
+    try {
+      if (!editor || !monaco) {
+        console.warn('Editor or Monaco not available');
+        return;
       }
-      `,
-      'file:///node_modules/@types/remotion/index.d.ts'
-    );
+
+      editorRef.current = editor;
+
+      // 延迟配置，确保 Monaco 完全初始化
+      setTimeout(() => {
+        try {
+          // 确保 Monaco 和 TypeScript 服务已加载
+          if (!monaco?.languages?.typescript?.typescriptDefaults) {
+            console.warn('Monaco TypeScript service not available yet');
+            return;
+          }
+
+          // 配置 Monaco Editor
+          monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+            target: monaco.languages.typescript.ScriptTarget.ES2020,
+            allowNonTsExtensions: true,
+            moduleResolution:
+              monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+            module: monaco.languages.typescript.ModuleKind.ESNext,
+            noEmit: true,
+            esModuleInterop: true,
+            jsx: monaco.languages.typescript.JsxEmit.React,
+            reactNamespace: 'React',
+            allowJs: true,
+            typeRoots: ['node_modules/@types'],
+          });
+
+          // 添加 Remotion 类型提示
+          monaco.languages.typescript.typescriptDefaults.addExtraLib(
+            `
+            declare module 'remotion' {
+              export const AbsoluteFill: any;
+              export const useCurrentFrame: () => number;
+              export const interpolate: (input: number, inputRange: number[], outputRange: number[], options?: any) => number;
+            }
+            `,
+            'file:///node_modules/@types/remotion/index.d.ts'
+          );
+        } catch (error: any) {
+          console.error('Failed to configure Monaco:', error);
+        }
+      }, 100);
+    } catch (error: any) {
+      console.error('Error in handleEditorDidMount:', error);
+    }
+  }
+
+  function handleEditorWillMount(monaco: Monaco) {
+    try {
+      // 在编辑器挂载前进行一些初始化
+      if (monaco?.languages?.typescript) {
+        console.log('Monaco Editor will mount, TypeScript service available');
+      }
+    } catch (error: any) {
+      console.error('Error in handleEditorWillMount:', error);
+    }
   }
 
   function handleEditorChange(value: string | undefined) {
@@ -56,6 +89,7 @@ export default function CodeEditor() {
         defaultLanguage="typescript"
         value={code}
         onChange={handleEditorChange}
+        beforeMount={handleEditorWillMount}
         onMount={handleEditorDidMount}
         theme="vs-dark"
         options={{
@@ -67,12 +101,22 @@ export default function CodeEditor() {
           automaticLayout: true,
           tabSize: 2,
           wordWrap: 'on',
+          // 禁用一些可能导致问题的功能
+          quickSuggestions: false,
+          suggestOnTriggerCharacters: false,
+          acceptSuggestionOnEnter: 'off',
         }}
         loading={
           <div className="h-full flex items-center justify-center bg-[#1e1e1e] text-gray-400">
             <Loader2 className="w-8 h-8 animate-spin" />
           </div>
         }
+        onValidate={(markers) => {
+          // 静默处理验证错误，避免阻塞
+          if (markers.length > 0) {
+            console.debug('Editor validation markers:', markers.length);
+          }
+        }}
       />
     </div>
   );

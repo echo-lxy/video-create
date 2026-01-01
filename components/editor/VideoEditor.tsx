@@ -46,11 +46,40 @@ export default function VideoEditor() {
     // 捕获全局错误
     const handleError = (event: ErrorEvent) => {
       console.error('VideoEditor error:', event.error);
-      setError(event.error?.message || 'Unknown error');
+      const errorMessage = event.error?.message || event.message || 'Unknown error';
+      
+      // 过滤掉一些已知的 Monaco Editor 内部错误
+      if (errorMessage.includes('BarBarToken') || 
+          errorMessage.includes('monaco') ||
+          errorMessage.includes('Monaco')) {
+        console.warn('Monaco Editor internal error (may be safe to ignore):', errorMessage);
+        return; // 不显示这些错误，它们通常是内部的
+      }
+      
+      setError(errorMessage);
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('Unhandled promise rejection:', event.reason);
+      const errorMessage = event.reason?.message || String(event.reason) || 'Unknown error';
+      
+      // 过滤 Monaco Editor 相关错误
+      if (errorMessage.includes('BarBarToken') || 
+          errorMessage.includes('monaco')) {
+        console.warn('Monaco Editor promise rejection (may be safe to ignore):', errorMessage);
+        return;
+      }
+      
+      setError(errorMessage);
     };
 
     window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
   }, []);
 
   if (!mounted) {

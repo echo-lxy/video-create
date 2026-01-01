@@ -126,18 +126,24 @@ export default function VideoPreview() {
       </div>
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="bg-black rounded-lg overflow-hidden shadow-2xl">
-          <Player
-            component={component}
-            durationInFrames={300}
-            compositionWidth={1920}
-            compositionHeight={1080}
-            fps={30}
-            controls
-            style={{
-              width: '100%',
-              maxWidth: '800px',
-            }}
-          />
+          {component ? (
+            <Player
+              component={component}
+              durationInFrames={300}
+              compositionWidth={1920}
+              compositionHeight={1080}
+              fps={30}
+              controls
+              style={{
+                width: '100%',
+                maxWidth: '800px',
+              }}
+            />
+          ) : (
+            <div className="w-full h-96 flex items-center justify-center text-gray-400">
+              No component to preview
+            </div>
+          )}
         </div>
       </div>
     </div>
