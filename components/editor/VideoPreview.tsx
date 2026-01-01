@@ -284,7 +284,7 @@ export default function VideoPreview() {
         fps,
         width,
         height,
-      });
+      }, playerRef);
       alert('视频导出成功！');
     } catch (error: any) {
       console.error('导出失败:', error);
@@ -292,7 +292,7 @@ export default function VideoPreview() {
     } finally {
       setIsExporting(false);
     }
-  }, [stableComponent, durationInFrames, fps, width, height]);
+  }, [stableComponent, durationInFrames, fps, width, height, playerRef]);
 
   // 调试信息
   useEffect(() => {
