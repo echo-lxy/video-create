@@ -171,8 +171,22 @@ export default function VideoPreview() {
           );
         }
 
+        // 验证组件是否有效
+        if (typeof ComponentClass !== 'function') {
+          throw new Error(
+            `MyVideo is not a valid React component. Got: ${typeof ComponentClass}. ` +
+            'Make sure your code exports a function component named "MyVideo".'
+          );
+        }
+
+        console.log('✅ Component extracted successfully:', {
+          componentType: typeof ComponentClass,
+          componentName: ComponentClass.name || 'Anonymous',
+        });
+
         setComponent(() => ComponentClass);
       } catch (error: any) {
+        console.error('❌ Component extraction failed:', error);
         setCompilationError(error.message || 'Unknown error');
       } finally {
         setCompiling(false);
@@ -250,6 +264,7 @@ export default function VideoPreview() {
               compositionHeight={1080}
               fps={30}
               controls
+              acknowledgeRemotionLicense
               style={{
                 width: '100%',
                 maxWidth: '800px',
