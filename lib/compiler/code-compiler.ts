@@ -64,17 +64,49 @@ export async function compileTypeScript(code: string): Promise<CompileResult> {
       await initializeCompiler();
     }
 
-    // 确保代码有导出语句
+    // 预处理代码：移除 React 和 remotion 的导入语句
+    // 因为它们会作为参数传入，不需要导入
     let codeToCompile = code.trim();
+    
+    // 移除各种形式的 React 导入
+    codeToCompile = codeToCompile.replace(
+      /import\s+(?:\*\s+as\s+)?React(?:\s*,\s*\{[^}]*\})?\s+from\s+['"]react['"];?\s*/g,
+      ''
+    );
+    codeToCompile = codeToCompile.replace(
+      /import\s+\{[^}]*\}\s+from\s+['"]react['"];?\s*/g,
+      ''
+    );
+    
+    // 移除 remotion 的导入（AbsoluteFill, useCurrentFrame 等会作为参数传入）
+    codeToCompile = codeToCompile.replace(
+      /import\s+(?:\*\s+as\s+)?remotion(?:\s*,\s*\{[^}]*\})?\s+from\s+['"]remotion['"];?\s*/g,
+      ''
+    );
+    codeToCompile = codeToCompile.replace(
+      /import\s+\{[^}]*\}\s+from\s+['"]remotion['"];?\s*/g,
+      ''
+    );
+    
+    // 移除 'use client' 指令（不需要）
+    codeToCompile = codeToCompile.replace(/['"]use\s+client['"];?\s*/g, '');
+    
+    // 确保代码有导出语句
     if (!codeToCompile.includes('export')) {
       // 如果没有导出，添加默认导出
       codeToCompile = `${codeToCompile}\n\nexport { MyVideo };`;
     }
 
     // 包装代码，将 React 和 remotion 作为参数传入
+    // 注意：代码中直接使用 React 和 remotion，不需要导入
     const wrappedCode = `
       (function(React, remotion) {
+        // React 和 remotion 作为参数传入，可以直接使用
+        const { AbsoluteFill, useCurrentFrame, interpolate, useVideoConfig, useAudioData, staticFile, Sequence, Video, Audio, Img, OffthreadVideo, ...remotionExports } = remotion;
+        
         ${codeToCompile}
+        
+        // 返回导出的组件
         return typeof MyVideo !== 'undefined' ? MyVideo : null;
       })
     `;
@@ -86,6 +118,10 @@ export async function compileTypeScript(code: string): Promise<CompileResult> {
       format: 'iife', // IIFE 格式，可以在浏览器中直接执行
       jsxFactory: 'React.createElement',
       jsxFragment: 'React.Fragment',
+      // 定义全局变量，避免 esbuild 报错
+      define: {
+        'process.env.NODE_ENV': '"production"',
+      },
     });
 
     return {

@@ -51,19 +51,12 @@ export default function VideoPreview() {
         const remotion = remotionModule.default || remotionModule;
 
         // 执行编译后的代码
-        // compiledCode 是一个 IIFE，需要传入 React 和 remotion
-        const componentFunc = new Function(
-          'React',
-          'remotion',
-          `
-          ${compiledCode}
-          // IIFE 会立即执行，我们需要捕获返回值
-          // 如果代码已经执行，尝试从全局作用域获取
-          return typeof MyVideo !== 'undefined' ? MyVideo : null;
-        `
-        );
-
-        const ComponentClass = componentFunc(React, remotion);
+        // compiledCode 是一个 IIFE 函数，需要调用并传入 React 和 remotion
+        // eslint-disable-next-line no-eval
+        const componentFactory = eval(compiledCode);
+        
+        // 调用 IIFE，传入 React 和 remotion
+        const ComponentClass = componentFactory(React, remotion);
 
         if (!ComponentClass) {
           throw new Error('Failed to extract MyVideo component. Make sure your code exports a component named "MyVideo".');

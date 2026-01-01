@@ -184,7 +184,7 @@ export default function CodeEditor() {
           colorDecorators: false,
           folding: true, // 保留代码折叠（常用功能）
           links: false,
-          occurrencesHighlight: false,
+          occurrencesHighlight: 'off',
           renderWhitespace: 'none',
           selectionHighlight: false,
           // 最小化 TypeScript 服务

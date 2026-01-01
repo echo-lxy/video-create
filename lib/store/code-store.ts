@@ -15,10 +15,10 @@ export interface CodeState {
   resetCode: () => void;
 }
 
-const DEFAULT_CODE = `import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+const DEFAULT_CODE = `// React 和 remotion 会自动注入，无需导入
+// 直接使用 React 和 remotion 的 API
 
-export const MyVideo: React.FC = () => {
+export const MyVideo = () => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 30], [0, 1], {
     extrapolateRight: 'clamp',
