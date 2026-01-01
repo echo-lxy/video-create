@@ -49,61 +49,36 @@ export async function exportVideo(
       height: options.height,
     });
 
-    // 尝试使用 Remotion 官方客户端渲染 API
-    // 主动解决 WebGL shader 问题，而不是直接回退
+    // 优先使用软件渲染（避免 WebGL 问题）
+    // 如果软件渲染失败，再尝试其他方案
+    console.log('🔧 优先使用软件渲染（避免 WebGL 依赖）...');
     try {
-      return await renderWithRemotion(options, 'prefer-hardware');
-    } catch (hardwareError: any) {
-      // 如果是 shader 相关错误，尝试多种解决方案
-      if (hardwareError.message?.includes('shader') || 
-          hardwareError.message?.includes('Shader') ||
-          hardwareError.message?.includes('WebGL') ||
-          hardwareError.message?.includes('Could not create')) {
-        console.warn('⚠️ 检测到 WebGL shader 错误，尝试解决...', hardwareError.message);
+      return await renderWithRemotion(options, 'prefer-software');
+    } catch (softwareError: any) {
+      console.warn('⚠️ 软件渲染失败，尝试无偏好模式...', softwareError.message);
+      
+      // 尝试无偏好模式（让浏览器自动选择）
+      try {
+        return await renderWithRemotion(options, 'no-preference');
+      } catch (noPreferenceError: any) {
+        console.warn('⚠️ 无偏好模式也失败，尝试硬件加速...', noPreferenceError.message);
         
-        // 解决方案 1: 尝试软件渲染
-        console.log('🔧 解决方案 1: 尝试软件渲染模式...');
+        // 最后尝试硬件加速（可能在某些环境下有效）
         try {
-          return await renderWithRemotion(options, 'prefer-software');
-        } catch (softwareError: any) {
-          console.warn('⚠️ 软件渲染失败，尝试无偏好模式...', softwareError.message);
+          return await renderWithRemotion(options, 'prefer-hardware');
+        } catch (hardwareError: any) {
+          console.error('❌ 所有 Remotion 渲染模式都失败，自动使用屏幕录制方案', {
+            software: softwareError.message,
+            noPreference: noPreferenceError.message,
+            hardware: hardwareError.message,
+          });
           
-          // 解决方案 2: 尝试无偏好模式（让浏览器自动选择）
-          try {
-            return await renderWithRemotion(options, 'no-preference');
-          } catch (noPreferenceError: any) {
-            console.error('❌ 所有渲染模式都失败:', {
-              hardware: hardwareError.message,
-              software: softwareError.message,
-              noPreference: noPreferenceError.message,
-            });
-            
-            // 提供详细的错误信息和解决建议
-            const webglCheck = checkWebGLSupport();
-            const errorMessage = 
-              `视频导出失败：WebGL shader 创建错误\n\n` +
-              `错误详情：\n` +
-              `- 硬件加速: ${hardwareError.message}\n` +
-              `- 软件渲染: ${softwareError.message}\n` +
-              `- 无偏好模式: ${noPreferenceError.message}\n\n` +
-              `WebGL 诊断：\n` +
-              `- 支持状态: ${webglCheck.supported ? '✅ 支持' : '❌ 不支持'}\n` +
-              (webglCheck.error ? `- 错误: ${webglCheck.error}\n` : '') +
-              (webglCheck.details.vendor ? `- GPU 厂商: ${webglCheck.details.vendor}\n` : '') +
-              (webglCheck.details.renderer ? `- GPU 型号: ${webglCheck.details.renderer}\n` : '') +
-              `\n建议：\n` +
-              `1. 更新浏览器到最新版本\n` +
-              `2. 更新 GPU 驱动程序\n` +
-              `3. 检查浏览器是否禁用了硬件加速\n` +
-              `4. 尝试使用其他浏览器（Chrome/Edge 推荐）\n` +
-              `5. 如果问题持续，可以使用屏幕录制方案`;
-            
-            throw new Error(errorMessage);
-          }
+          // 所有 Remotion 方案都失败，自动回退到屏幕录制
+          // 不再抛出错误，而是直接使用屏幕录制
+          console.log('🔄 自动切换到屏幕录制方案...');
+          return await startScreenRecording(options);
         }
       }
-      // 其他错误，直接抛出
-      throw hardwareError;
     }
   } catch (error: any) {
     console.error('❌ 视频导出失败:', error);
@@ -116,11 +91,21 @@ export async function exportVideo(
       return await startScreenRecording(options);
     }
     
-    // 如果是 shader 错误，已经在上面的 try-catch 中尝试了所有解决方案
-    // 这里不再回退，而是抛出详细错误信息，让用户了解问题
-    if (error.message?.includes('shader') || error.message?.includes('Shader') || error.message?.includes('WebGL')) {
-      // 错误信息已经包含详细的诊断信息和建议
-      throw error;
+    // 如果是 shader/WebGL 错误，自动回退到屏幕录制
+    if (error.message?.includes('shader') || 
+        error.message?.includes('Shader') || 
+        error.message?.includes('WebGL') ||
+        error.message?.includes('context lost')) {
+      console.warn('⚠️ WebGL 相关错误，自动回退到屏幕录制方案...');
+      try {
+        return await startScreenRecording(options);
+      } catch (screenError: any) {
+        // 如果屏幕录制也需要用户手势，抛出特殊错误
+        if (screenError.message?.includes('SCREEN_RECORDING_REQUIRES_USER_GESTURE')) {
+          throw screenError;
+        }
+        throw screenError;
+      }
     }
     
     // 如果错误信息包含用户手势要求，直接抛出
@@ -201,18 +186,8 @@ async function renderWithRemotion(
   options: ExportOptions,
   hardwareAcceleration: 'prefer-hardware' | 'prefer-software' | 'no-preference'
 ): Promise<void> {
-  // 在渲染前检查 WebGL 支持（仅在硬件加速时）
-  if (hardwareAcceleration === 'prefer-hardware') {
-    const webglCheck = checkWebGLSupport();
-    if (!webglCheck.supported) {
-      console.warn('⚠️ WebGL 检查失败:', webglCheck.error, webglCheck.details);
-      // 如果 WebGL 不支持，自动切换到软件渲染
-      console.log('🔄 自动切换到软件渲染模式...');
-      return await renderWithRemotion(options, 'prefer-software');
-    } else {
-      console.log('✅ WebGL 支持正常:', webglCheck.details);
-    }
-  }
+  // 不再预检查 WebGL，直接尝试渲染
+  // 如果失败，会在上层自动回退到屏幕录制
 
   // 使用 Remotion 官方客户端渲染 API
   // 参考文档：https://www.remotion.dev/docs/client-side-rendering/
@@ -239,6 +214,8 @@ async function renderWithRemotion(
     onProgress: options.onProgress || null,
     // 硬件加速选项：根据错误自动调整
     hardwareAcceleration: hardwareAcceleration,
+    // 添加 licenseKey（使用免费许可证）
+    licenseKey: 'free-license',
   });
 
   // 获取视频 Blob
