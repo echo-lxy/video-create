@@ -45,8 +45,9 @@ curl -L -o vs/editor/editor.main.nls.js https://cdn.jsdelivr.net/npm/monaco-edit
 echo "  - tsMode.js (TypeScript 模式)"
 curl -L -o vs/language/typescript/tsMode.js https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/language/typescript/tsMode.js
 
-echo "  - typescript.js (TypeScript 语言定义)"
-curl -L -o vs/language/typescript/typescript.js https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/language/typescript/typescript.js
+echo "  - codicon.ttf (图标字体)"
+mkdir -p vs/base/browser/ui/codicons
+curl -L -o vs/base/browser/ui/codicons/codicon.ttf https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/base/browser/ui/codicons/codicon.ttf
 
 cd ../../
 

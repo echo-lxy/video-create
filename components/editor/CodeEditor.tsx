@@ -12,17 +12,27 @@ if (typeof window !== 'undefined') {
   (window as any).__MONACO_EDITOR_SOURCE_MAP__ = false;
   
   // 配置 Monaco Environment，禁用 source map 和错误处理
+  const isProduction = window.location.hostname === 'echo-lxy.github.io' || 
+    process.env.NODE_ENV === 'production';
+  const basePath = isProduction ? '/video-create' : '';
+  
   (window as any).MonacoEnvironment = {
     ...((window as any).MonacoEnvironment || {}),
     getWorkerUrl: function(moduleId: string, label: string) {
-      // 返回 worker URL，不包含 .map 文件
-      const isProduction = window.location.hostname === 'echo-lxy.github.io' || 
-        process.env.NODE_ENV === 'production';
-      const basePath = isProduction ? '/video-create' : '';
+      // 根据模块类型返回不同的 worker URL
+      if (label === 'typescript' || label === 'javascript') {
+        return `${basePath}/monaco/vs/language/typescript/tsWorker.js`;
+      }
+      // 默认返回基础 worker（如果存在）
       return `${basePath}/monaco/vs/base/common/worker/workerMain.js`;
     },
     // 禁用 source map
     sourceMap: false,
+    // 禁用 worker，在主线程运行（避免 worker 加载错误）
+    getWorker: function(moduleId: string, label: string) {
+      // 返回 null 表示在主线程运行，避免 worker 加载错误
+      return null as any;
+    },
   };
   
   // 全局错误处理：忽略 source map 相关错误
@@ -36,9 +46,6 @@ if (typeof window !== 'undefined') {
     originalError.apply(console, args);
   };
   
-  const isProduction = window.location.hostname === 'echo-lxy.github.io' || 
-    process.env.NODE_ENV === 'production';
-  const basePath = isProduction ? '/video-create' : '';
   const monacoPath = `${basePath}/monaco/vs`;
   
   // 优先使用本地资源（开发环境直接使用，不检查）
