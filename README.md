@@ -89,7 +89,7 @@ npm run export
 ### UI/UX
 - **Tailwind CSS** - 样式框架
 - **Lucide React** - 图标库
-- **react-resizable-panels** - 可调整大小的面板
+- **Allotment** - VSCode 风格的可调整大小面板（基于 VSCode 源码）
 
 ### 状态管理
 - **Zustand** - 轻量级状态管理

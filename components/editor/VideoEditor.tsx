@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Panel, Group, Separator } from 'react-resizable-panels';
+import { Allotment } from 'allotment';
+import 'allotment/dist/style.css';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -89,46 +90,52 @@ export default function VideoEditor() {
     };
   }, []);
 
-  const handleActivityChange = (activity: ActivityId) => {
-    // 如果点击的是当前活动，则关闭侧边栏（仅对侧边栏活动）
-    if (activeActivity === activity && ['ai', 'assets', 'prompt'].includes(activity)) {
+  // 处理活动栏点击
+  const handleActivityChange = (activity: ActivityId | null) => {
+    if (activity === activeActivity) {
+      // 如果点击的是当前活动项，则关闭侧边栏
       setActiveActivity(null);
-      return;
-    }
-    
-    // 设置新的活动
-    setActiveActivity(activity);
-    
-    // 如果选择的是编辑器或预览，自动添加到标签页并激活
-    if (activity === 'editor') {
-      if (!activeTabs.includes('editor')) {
-        setActiveTabs([...activeTabs, 'editor']);
+    } else {
+      // 否则切换到新的活动项
+      setActiveActivity(activity);
+      
+      // 根据活动项更新标签页
+      if (activity === 'editor') {
+        // 确保编辑器标签页打开
+        if (!activeTabs.includes('editor')) {
+          setActiveTabs(['editor', ...activeTabs]);
+        }
+      } else if (activity === 'preview') {
+        // 确保预览标签页打开
+        if (!activeTabs.includes('preview')) {
+          setActiveTabs(['preview', ...activeTabs]);
+        }
       }
-      // 注意：EditorArea会通过activeTabs的变化自动切换到editor标签
-    } else if (activity === 'preview') {
-      if (!activeTabs.includes('preview')) {
-        setActiveTabs([...activeTabs, 'preview']);
-      }
-      // 注意：EditorArea会通过activeTabs的变化自动切换到preview标签
     }
   };
 
   if (!mounted) {
     return (
-      <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
-        <div className="text-center text-[#cccccc]">Initializing...</div>
+      <div className="h-full w-full flex items-center justify-center bg-[#1e1e1e]">
+        <Loader2 className="w-12 h-12 animate-spin text-[#007acc]" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
-        <div className="text-center max-w-md px-4">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-red-300 mb-2">Error</h3>
-          <p className="text-sm text-[#cccccc] mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>Reload Page</Button>
+      <div className="h-full w-full flex items-center justify-center bg-[#1e1e1e]">
+        <div className="text-center max-w-2xl px-4">
+          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-red-300 mb-2">
+            编辑器错误
+          </h2>
+          <p className="text-[#cccccc] mb-4">
+            {error}
+          </p>
+          <Button onClick={() => window.location.reload()}>
+            刷新页面
+          </Button>
         </div>
       </div>
     );
@@ -136,19 +143,6 @@ export default function VideoEditor() {
 
   const showSidebar = activeActivity && ['ai', 'assets', 'prompt'].includes(activeActivity);
   const showBottomPanel = panelHeight > 0;
-
-  // 计算面板尺寸百分比
-  const getSidebarSize = () => {
-    if (!showSidebar) return 0;
-    const containerWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-    return Math.min(Math.max((sidebarWidth / containerWidth) * 100, 15), 40);
-  };
-
-  const getBottomPanelSize = () => {
-    if (!showBottomPanel) return 0;
-    const containerHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-    return Math.min(Math.max((panelHeight / containerHeight) * 100, 5), 70);
-  };
 
   return (
     <ErrorBoundary
@@ -178,9 +172,9 @@ export default function VideoEditor() {
       }}
     >
       <div className="h-full flex flex-col bg-[#1e1e1e] overflow-hidden">
-        {/* 主布局：活动栏 + 侧边栏 + 编辑区 + 底部面板 */}
+        {/* 主布局：活动栏 + 可调整大小的面板 */}
         <div className="flex-1 flex overflow-hidden">
-          {/* 活动栏 */}
+          {/* 活动栏 - 固定宽度 */}
           <div className="flex-shrink-0">
             <ActivityBar
               activeActivity={activeActivity}
@@ -188,64 +182,71 @@ export default function VideoEditor() {
             />
           </div>
 
-          {/* 侧边栏和主编辑区 */}
-          <Group orientation="horizontal" className="flex-1">
-            {/* 侧边栏（可调整大小） */}
-            {showSidebar && (
-              <>
-                <Panel
-                  defaultSize={getSidebarSize()}
-                  minSize={15}
-                  maxSize={40}
-                  onResize={(panelSize) => {
-                    // panelSize: { asPercentage, inPixels }
-                    setSidebarWidth(panelSize.inPixels);
-                  }}
+          {/* 主内容区 - 使用 Allotment 实现可调整大小 */}
+          <div className="flex-1 overflow-hidden">
+            <Allotment
+              onChange={(sizes) => {
+                // 跟踪侧边栏宽度变化
+                if (showSidebar && sizes.length > 0) {
+                  setSidebarWidth(sizes[0]);
+                }
+              }}
+            >
+              {/* 侧边栏 - 可选显示 */}
+              {showSidebar && (
+                <Allotment.Pane 
+                  minSize={200} 
+                  maxSize={600}
+                  preferredSize={320}
+                  snap
                 >
                   <Sidebar activeActivity={activeActivity} width={sidebarWidth} />
-                </Panel>
-                <Separator className="w-1 bg-[#1e1e1e] hover:bg-[#007acc] transition-colors cursor-col-resize" />
-              </>
-            )}
-
-            {/* 主编辑区和底部面板 */}
-            <Group orientation="vertical" className="flex-1">
-              <Panel
-                defaultSize={showBottomPanel ? 100 - getBottomPanelSize() : 100}
-                minSize={30}
-              >
-                <EditorArea
-                  activeTabs={activeTabs}
-                  onTabChange={setActiveTabs}
-                  defaultActiveTab={activeActivity === 'editor' ? 'editor' : activeActivity === 'preview' ? 'preview' : undefined}
-                />
-              </Panel>
-
-              {/* 底部面板（可调整大小） */}
-              {showBottomPanel && (
-                <>
-                  <Separator className="h-1 bg-[#1e1e1e] hover:bg-[#007acc] transition-colors cursor-row-resize" />
-                  <Panel
-                    defaultSize={getBottomPanelSize()}
-                    minSize={5}
-                    maxSize={70}
-                    onResize={(panelSize) => {
-                      // panelSize: { asPercentage, inPixels }
-                      setPanelHeight(panelSize.inPixels);
-                    }}
-                  >
-                    <BottomPanelComponent height={panelHeight} onHeightChange={setPanelHeight} />
-                  </Panel>
-                </>
+                </Allotment.Pane>
               )}
-            </Group>
-          </Group>
+
+              {/* 主编辑区和底部面板 - 垂直分割 */}
+              <Allotment.Pane>
+                <Allotment 
+                  vertical
+                  onChange={(sizes) => {
+                    // 跟踪底部面板高度变化
+                    if (showBottomPanel && sizes.length > 1) {
+                      setPanelHeight(sizes[1]);
+                    }
+                  }}
+                >
+                  {/* 主编辑区 */}
+                  <Allotment.Pane minSize={300}>
+                    <EditorArea
+                      activeTabs={activeTabs}
+                      onTabChange={setActiveTabs}
+                      defaultActiveTab={activeActivity === 'editor' ? 'editor' : activeActivity === 'preview' ? 'preview' : undefined}
+                    />
+                  </Allotment.Pane>
+
+                  {/* 底部面板 - 可选显示 */}
+                  {showBottomPanel && (
+                    <Allotment.Pane 
+                      minSize={100} 
+                      maxSize={500}
+                      preferredSize={200}
+                      snap
+                    >
+                      <BottomPanelComponent 
+                        height={panelHeight} 
+                        onHeightChange={setPanelHeight} 
+                      />
+                    </Allotment.Pane>
+                  )}
+                </Allotment>
+              </Allotment.Pane>
+            </Allotment>
+          </div>
         </div>
 
-        {/* 状态栏 */}
+        {/* 状态栏 - 固定在底部 */}
         <StatusBar />
       </div>
     </ErrorBoundary>
   );
 }
-

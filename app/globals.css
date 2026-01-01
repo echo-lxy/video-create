@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Allotment 样式覆盖 - VSCode 风格 */
+.split-view-view {
+  background-color: #1e1e1e !important;
+}
+
+.sash {
+  background-color: #3e3e42 !important;
+  transition: background-color 0.1s ease;
+}
+
+.sash:hover {
+  background-color: #007acc !important;
+}
+
+.sash.vertical {
+  width: 4px !important;
+  cursor: col-resize !important;
+}
+
+.sash.horizontal {
+  height: 4px !important;
+  cursor: row-resize !important;
+}
+
+.sash-container {
+  pointer-events: all !important;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
