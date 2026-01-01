@@ -269,6 +269,31 @@ export default function VideoPreview() {
     return component;
   }, [component]);
 
+  // 处理视频导出 - 必须在所有条件返回之前定义，确保 Hooks 调用顺序一致
+  const handleExport = useCallback(async () => {
+    if (!stableComponent) {
+      alert('请先编译代码，生成视频组件');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      await exportVideo({
+        component: stableComponent,
+        durationInFrames,
+        fps,
+        width,
+        height,
+      });
+      alert('视频导出成功！');
+    } catch (error: any) {
+      console.error('导出失败:', error);
+      alert(`视频导出失败: ${error.message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [stableComponent, durationInFrames, fps, width, height]);
+
   // 调试信息
   useEffect(() => {
     const store = useEditorStore.getState();
@@ -298,31 +323,6 @@ export default function VideoPreview() {
       </div>
     );
   }
-
-  // 处理视频导出
-  const handleExport = useCallback(async () => {
-    if (!stableComponent) {
-      alert('请先编译代码，生成视频组件');
-      return;
-    }
-
-    setIsExporting(true);
-    try {
-      await exportVideo({
-        component: stableComponent,
-        durationInFrames,
-        fps,
-        width,
-        height,
-      });
-      alert('视频导出成功！');
-    } catch (error: any) {
-      console.error('导出失败:', error);
-      alert(`视频导出失败: ${error.message}`);
-    } finally {
-      setIsExporting(false);
-    }
-  }, [stableComponent, durationInFrames, fps, width, height]);
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
