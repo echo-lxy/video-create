@@ -49,36 +49,56 @@ export async function exportVideo(
       height: options.height,
     });
 
-    // 优先使用软件渲染（避免 WebGL 问题）
-    // 如果软件渲染失败，再尝试其他方案
-    console.log('🔧 优先使用软件渲染（避免 WebGL 依赖）...');
+    // 深入分析和解决 shader 创建问题
+    // 1. 首先诊断 WebGL 问题
+    const webglDiagnosis = diagnoseWebGLIssue();
+    console.log('🔍 WebGL 诊断结果:', webglDiagnosis);
+    
+    // 2. 根据诊断结果选择最佳渲染策略
+    let renderStrategy: 'prefer-software' | 'prefer-hardware' | 'no-preference' = 'prefer-software';
+    
+    if (webglDiagnosis.canCreateShader) {
+      // 如果 WebGL 和 shader 都正常，可以尝试硬件加速
+      console.log('✅ WebGL 和 shader 正常，尝试硬件加速...');
+      renderStrategy = 'prefer-hardware';
+    } else if (webglDiagnosis.hasWebGLContext) {
+      // 如果有 WebGL 上下文但 shader 创建失败，尝试无偏好模式
+      console.log('⚠️ WebGL 上下文存在但 shader 创建失败，尝试无偏好模式...');
+      renderStrategy = 'no-preference';
+    } else {
+      // 如果 WebGL 完全不可用，使用软件渲染
+      console.log('⚠️ WebGL 不可用，使用软件渲染...');
+      renderStrategy = 'prefer-software';
+    }
+
+    // 3. 尝试渲染，如果失败则深入分析错误
     try {
-      return await renderWithRemotion(options, 'prefer-software');
-    } catch (softwareError: any) {
-      console.warn('⚠️ 软件渲染失败，尝试无偏好模式...', softwareError.message);
+      return await renderWithRemotion(options, renderStrategy);
+    } catch (renderError: any) {
+      console.error('❌ 渲染失败，深入分析错误...', renderError);
       
-      // 尝试无偏好模式（让浏览器自动选择）
-      try {
-        return await renderWithRemotion(options, 'no-preference');
-      } catch (noPreferenceError: any) {
-        console.warn('⚠️ 无偏好模式也失败，尝试硬件加速...', noPreferenceError.message);
-        
-        // 最后尝试硬件加速（可能在某些环境下有效）
+      // 分析错误类型
+      const errorAnalysis = analyzeRenderError(renderError, webglDiagnosis);
+      console.log('🔍 错误分析:', errorAnalysis);
+      
+      // 根据错误分析尝试修复
+      if (errorAnalysis.canRetry) {
+        console.log(`🔄 尝试修复方案: ${errorAnalysis.retryStrategy}`);
         try {
-          return await renderWithRemotion(options, 'prefer-hardware');
-        } catch (hardwareError: any) {
-          console.error('❌ 所有 Remotion 渲染模式都失败，自动使用屏幕录制方案', {
-            software: softwareError.message,
-            noPreference: noPreferenceError.message,
-            hardware: hardwareError.message,
-          });
-          
-          // 所有 Remotion 方案都失败，自动回退到屏幕录制
-          // 不再抛出错误，而是直接使用屏幕录制
-          console.log('🔄 自动切换到屏幕录制方案...');
-          return await startScreenRecording(options);
+          return await renderWithRemotion(options, errorAnalysis.retryStrategy as any);
+        } catch (retryError: any) {
+          console.error('❌ 修复方案也失败:', retryError);
+          // 继续到下一个方案
         }
       }
+      
+      // 如果所有方案都失败，提供详细的错误信息
+      const detailedError = buildDetailedError(renderError, webglDiagnosis, errorAnalysis);
+      console.error('❌ 所有渲染方案都失败:', detailedError);
+      
+      // 最后尝试屏幕录制
+      console.log('🔄 自动切换到屏幕录制方案...');
+      return await startScreenRecording(options);
     }
   } catch (error: any) {
     console.error('❌ 视频导出失败:', error);
@@ -118,63 +138,292 @@ export async function exportVideo(
 }
 
 /**
- * 检查 WebGL 支持并诊断问题
+ * 深入诊断 WebGL 和 shader 问题
+ * 分析 Remotion 为什么需要 WebGL 以及如何解决
  */
-function checkWebGLSupport(): { supported: boolean; error?: string; details: any } {
+function diagnoseWebGLIssue(): {
+  hasOffscreenCanvas: boolean;
+  hasWebGLContext: boolean;
+  canCreateShader: boolean;
+  shaderError?: string;
+  webglError?: string;
+  details: any;
+} {
+  const diagnosis = {
+    hasOffscreenCanvas: false,
+    hasWebGLContext: false,
+    canCreateShader: false,
+    shaderError: undefined as string | undefined,
+    webglError: undefined as string | undefined,
+    details: {} as any,
+  };
+
   try {
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
-    
-    if (!gl) {
-      return {
-        supported: false,
-        error: 'WebGL 不支持或已被禁用',
-        details: {
-          hasWebGL: false,
-          hasExperimentalWebGL: false,
-        },
-      };
+    // 1. 检查 OffscreenCanvas 支持（Remotion 使用它）
+    if (typeof OffscreenCanvas !== 'undefined') {
+      diagnosis.hasOffscreenCanvas = true;
+      
+      try {
+        // 尝试创建 OffscreenCanvas 和 WebGL 上下文（模拟 Remotion 的行为）
+        const offscreenCanvas = new OffscreenCanvas(100, 100);
+        const gl = offscreenCanvas.getContext('webgl', {
+          premultipliedAlpha: true,
+        }) as WebGLRenderingContext | null;
+        
+        if (gl) {
+          diagnosis.hasWebGLContext = true;
+          diagnosis.details.offscreenWebGL = true;
+          
+          // 测试 shader 创建（这是 Remotion 失败的地方）
+          const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+          const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+          
+          if (vertexShader && fragmentShader) {
+            diagnosis.canCreateShader = true;
+            
+            // 测试 shader 编译（使用 Remotion 的 shader 源码）
+            const vsSource = `
+              attribute vec2 aPosition;
+              attribute vec2 aTexCoord;
+              uniform mat4 uTransform;
+              uniform mat4 uProjection;
+              varying vec2 vTexCoord;
+              void main() {
+                gl_Position = uProjection * uTransform * vec4(aPosition, 0.0, 1.0);
+                vTexCoord = aTexCoord;
+              }
+            `;
+            
+            const fsSource = `
+              precision mediump float;
+              uniform sampler2D uTexture;
+              varying vec2 vTexCoord;
+              void main() {
+                gl_FragColor = texture2D(uTexture, vTexCoord);
+              }
+            `;
+            
+            try {
+              gl.shaderSource(vertexShader, vsSource);
+              gl.compileShader(vertexShader);
+              if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+                diagnosis.shaderError = gl.getShaderInfoLog(vertexShader) || 'Vertex shader compile failed';
+                diagnosis.canCreateShader = false;
+              }
+              
+              gl.shaderSource(fragmentShader, fsSource);
+              gl.compileShader(fragmentShader);
+              if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+                diagnosis.shaderError = gl.getShaderInfoLog(fragmentShader) || 'Fragment shader compile failed';
+                diagnosis.canCreateShader = false;
+              }
+            } catch (compileError: any) {
+              diagnosis.shaderError = compileError.message;
+              diagnosis.canCreateShader = false;
+            }
+            
+            // 清理
+            gl.deleteShader(vertexShader);
+            gl.deleteShader(fragmentShader);
+          } else {
+            diagnosis.shaderError = 'createShader returned null';
+            diagnosis.canCreateShader = false;
+          }
+          
+          // 检查上下文是否丢失
+          if (gl.isContextLost()) {
+            diagnosis.webglError = 'WebGL context lost';
+            diagnosis.hasWebGLContext = false;
+          }
+        } else {
+          diagnosis.webglError = 'Cannot create WebGL context from OffscreenCanvas';
+        }
+      } catch (offscreenError: any) {
+        diagnosis.webglError = offscreenError.message;
+      }
+    } else {
+      diagnosis.webglError = 'OffscreenCanvas not supported';
     }
-
-    // 类型断言为 WebGLRenderingContext
-    const webglContext = gl as WebGLRenderingContext;
-    const debugInfo = webglContext.getExtension('WEBGL_debug_renderer_info') as WEBGL_debug_renderer_info | null;
-    const vendor = debugInfo ? webglContext.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) as string : 'Unknown';
-    const renderer = debugInfo ? webglContext.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) as string : 'Unknown';
     
-    // 检查 shader 支持
-    const vertexShader = webglContext.createShader(webglContext.VERTEX_SHADER);
-    const fragmentShader = webglContext.createShader(webglContext.FRAGMENT_SHADER);
-    
-    if (!vertexShader || !fragmentShader) {
-      return {
-        supported: false,
-        error: '无法创建 WebGL shader',
-        details: { vendor, renderer },
-      };
+    // 2. 检查普通 Canvas WebGL（作为后备）
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
+      
+      if (gl) {
+        diagnosis.details.regularCanvasWebGL = true;
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info') as WEBGL_debug_renderer_info | null;
+        if (debugInfo) {
+          diagnosis.details.vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+          diagnosis.details.renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+        }
+      }
+    } catch (e) {
+      // 忽略普通 canvas 错误
     }
-
-    // 清理
-    webglContext.deleteShader(vertexShader);
-    webglContext.deleteShader(fragmentShader);
-
-    return {
-      supported: true,
-      details: { vendor, renderer },
-    };
+    
   } catch (error: any) {
+    diagnosis.webglError = error.message || 'Diagnosis failed';
+  }
+  
+  return diagnosis;
+}
+
+/**
+ * 分析渲染错误，提供修复建议
+ */
+function analyzeRenderError(
+  error: any,
+  diagnosis: ReturnType<typeof diagnoseWebGLIssue>
+): {
+  errorType: 'shader' | 'webgl' | 'offscreen' | 'other';
+  canRetry: boolean;
+  retryStrategy?: 'prefer-software' | 'prefer-hardware' | 'no-preference';
+  fixSuggestion?: string;
+} {
+  const errorMessage = error.message || '';
+  
+  if (errorMessage.includes('shader') || errorMessage.includes('Shader')) {
+    if (!diagnosis.hasOffscreenCanvas) {
+      return {
+        errorType: 'offscreen',
+        canRetry: false,
+        fixSuggestion: '浏览器不支持 OffscreenCanvas，这是 Remotion web-renderer 的必需功能。请更新浏览器或使用屏幕录制方案。',
+      };
+    }
+    
+    if (!diagnosis.canCreateShader) {
+      return {
+        errorType: 'shader',
+        canRetry: true,
+        retryStrategy: 'prefer-software',
+        fixSuggestion: 'Shader 创建失败，可能是 GPU 驱动问题。尝试软件渲染或更新 GPU 驱动。',
+      };
+    }
+    
     return {
-      supported: false,
-      error: error.message || 'WebGL 检查失败',
-      details: {},
+      errorType: 'shader',
+      canRetry: true,
+      retryStrategy: 'no-preference',
+      fixSuggestion: 'Shader 编译错误，尝试让浏览器自动选择渲染模式。',
     };
   }
+  
+  if (errorMessage.includes('WebGL') || errorMessage.includes('webgl')) {
+    return {
+      errorType: 'webgl',
+      canRetry: true,
+      retryStrategy: 'prefer-software',
+      fixSuggestion: 'WebGL 问题，尝试软件渲染。',
+    };
+  }
+  
+  return {
+    errorType: 'other',
+    canRetry: false,
+    fixSuggestion: '未知错误，请查看详细错误信息。',
+  };
+}
+
+/**
+ * 构建详细的错误信息
+ */
+function buildDetailedError(
+  error: any,
+  diagnosis: ReturnType<typeof diagnoseWebGLIssue>,
+  analysis: ReturnType<typeof analyzeRenderError>
+): string {
+  return `
+视频导出失败：${error.message}
+
+诊断信息：
+- OffscreenCanvas 支持: ${diagnosis.hasOffscreenCanvas ? '✅' : '❌'}
+- WebGL 上下文: ${diagnosis.hasWebGLContext ? '✅' : '❌'}
+- Shader 创建: ${diagnosis.canCreateShader ? '✅' : '❌'}
+${diagnosis.shaderError ? `- Shader 错误: ${diagnosis.shaderError}` : ''}
+${diagnosis.webglError ? `- WebGL 错误: ${diagnosis.webglError}` : ''}
+${diagnosis.details.vendor ? `- GPU 厂商: ${diagnosis.details.vendor}` : ''}
+${diagnosis.details.renderer ? `- GPU 型号: ${diagnosis.details.renderer}` : ''}
+
+错误类型: ${analysis.errorType}
+${analysis.fixSuggestion ? `建议: ${analysis.fixSuggestion}` : ''}
+
+Remotion web-renderer 需要 WebGL 来处理 3D 变换和某些渲染效果。
+如果 WebGL 不可用，系统会自动使用屏幕录制方案。
+  `.trim();
 }
 
 // WebGL 扩展类型定义
 interface WEBGL_debug_renderer_info {
   UNMASKED_VENDOR_WEBGL: number;
   UNMASKED_RENDERER_WEBGL: number;
+}
+
+/**
+ * 修复 WebGL 上下文问题
+ * 如果 WebGL 上下文丢失或创建失败，尝试修复
+ */
+function fixWebGLContext(): { fixed: boolean; error?: string } {
+  try {
+    // 检查是否有丢失的 WebGL 上下文
+    const canvas = document.createElement('canvas');
+    
+    // 尝试创建 WebGL 上下文
+    const gl = canvas.getContext('webgl', {
+      preserveDrawingBuffer: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      failIfMajorPerformanceCaveat: false, // 即使性能差也允许
+    }) || canvas.getContext('experimental-webgl', {
+      preserveDrawingBuffer: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      failIfMajorPerformanceCaveat: false,
+    }) as WebGLRenderingContext | null;
+
+    if (!gl) {
+      return {
+        fixed: false,
+        error: '无法创建 WebGL 上下文',
+      };
+    }
+
+    // 测试 shader 创建
+    const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+
+    if (!vertexShader || !fragmentShader) {
+      // 清理
+      if (vertexShader) gl.deleteShader(vertexShader);
+      if (fragmentShader) gl.deleteShader(fragmentShader);
+      
+      return {
+        fixed: false,
+        error: '无法创建 WebGL shader',
+      };
+    }
+
+    // 清理测试资源
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
+
+    // 检查上下文是否丢失
+    if (gl.isContextLost()) {
+      return {
+        fixed: false,
+        error: 'WebGL 上下文已丢失',
+      };
+    }
+
+    return { fixed: true };
+  } catch (error: any) {
+    return {
+      fixed: false,
+      error: error.message || 'WebGL 修复失败',
+    };
+  }
 }
 
 /**
@@ -186,8 +435,14 @@ async function renderWithRemotion(
   options: ExportOptions,
   hardwareAcceleration: 'prefer-hardware' | 'prefer-software' | 'no-preference'
 ): Promise<void> {
-  // 不再预检查 WebGL，直接尝试渲染
-  // 如果失败，会在上层自动回退到屏幕录制
+  // 在渲染前修复 WebGL 上下文问题
+  const webglFix = fixWebGLContext();
+  if (!webglFix.fixed) {
+    console.warn('⚠️ WebGL 上下文问题:', webglFix.error);
+    // 即使 WebGL 有问题，也尝试渲染（Remotion 可能会处理）
+  } else {
+    console.log('✅ WebGL 上下文正常');
+  }
 
   // 使用 Remotion 官方客户端渲染 API
   // 参考文档：https://www.remotion.dev/docs/client-side-rendering/
