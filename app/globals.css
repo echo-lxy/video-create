@@ -8,24 +8,34 @@
   width: 100% !important;
   height: 100% !important;
   position: relative;
+  display: flex !important;
+  flex-direction: row !important;
+}
+
+.allotment.vertical {
+  flex-direction: column !important;
 }
 
 .split-view-view {
   background-color: #1e1e1e !important;
   width: 100% !important;
   height: 100% !important;
+  position: relative;
+  overflow: hidden;
 }
 
 .split-view-container {
   width: 100% !important;
   height: 100% !important;
+  position: relative;
 }
 
-/* 分隔条样式 */
+/* 分隔条样式 - VSCode 风格 */
 .sash {
   background-color: #3e3e42 !important;
   transition: background-color 0.1s ease;
-  z-index: 35 !important; /* 确保分隔条在最上层 */
+  z-index: 35 !important;
+  position: relative;
 }
 
 .sash:hover {
@@ -35,21 +45,37 @@
 .sash.vertical {
   width: 4px !important;
   cursor: col-resize !important;
+  min-width: 4px !important;
 }
 
 .sash.horizontal {
   height: 4px !important;
   cursor: row-resize !important;
+  min-height: 4px !important;
 }
 
 .sash-container {
   pointer-events: all !important;
+  position: relative;
+  z-index: 35;
 }
 
 /* 确保面板内容填满 */
 .split-view-view > * {
-  width: 100%;
-  height: 100%;
+  width: 100% !important;
+  height: 100% !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 防止内容溢出 */
+.split-view-view {
+  overflow: hidden !important;
+}
+
+/* 确保所有子元素正确显示 */
+.allotment > * {
+  position: relative;
 }
 
 @layer base {

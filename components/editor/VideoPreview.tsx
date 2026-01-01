@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Allotment } from 'allotment';
+import 'allotment/dist/style.css';
 import { Player, PlayerRef } from '@remotion/player';
 import { useCodeStore } from '@/lib/store/code-store';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { compileTypeScript } from '@/lib/compiler/code-compiler';
 import { validateCode } from '@/lib/security/code-validator';
-import { Loader2, AlertCircle, Settings } from 'lucide-react';
+import { Loader2, AlertCircle, Settings, Download } from 'lucide-react';
 import { debounce } from 'lodash-es';
 import Timeline from './Timeline';
 import ExportDialog, { ExportSettings } from './ExportDialog';
@@ -15,12 +17,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useTimelineStore } from '@/lib/store/timeline-store';
-import { Download } from 'lucide-react';
 
 export default function VideoPreview() {
   const { code, videoConfig, setVideoConfig } = useCodeStore();
-  const { setCompiling, setCompilationError, compilationError } =
-    useEditorStore();
+  const { setCompiling, setCompilationError, compilationError } = useEditorStore();
   const [component, setComponent] = useState<React.ComponentType | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -30,22 +30,19 @@ export default function VideoPreview() {
   const [showVideoSettings, setShowVideoSettings] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [tempVideoConfig, setTempVideoConfig] = useState(videoConfig);
+  const [playerHeight, setPlayerHeight] = useState(60); // 播放器区域占比（百分比）
   const { setDuration } = useTimelineStore();
   
-  // 使用可配置的视频设置
   const { durationInFrames, fps, width, height } = videoConfig;
 
-  // 同步视频配置到 Timeline
   useEffect(() => {
     setDuration(durationInFrames, fps);
   }, [durationInFrames, fps, setDuration]);
   
-  // 当 videoConfig 变化时，更新临时配置
   useEffect(() => {
     setTempVideoConfig(videoConfig);
   }, [videoConfig]);
   
-  // 保存视频配置
   const handleSaveVideoConfig = useCallback(() => {
     setVideoConfig(tempVideoConfig);
     setShowVideoSettings(false);
@@ -56,9 +53,9 @@ export default function VideoPreview() {
       setCompiling(true);
       setValidationError(null);
       setCompilationError(null);
+      setRenderError(null);
 
       try {
-        // 1. 验证代码安全性
         const validation = await validateCode(codeToCompile);
         if (!validation.isValid) {
           setValidationError(validation.errors.join('\n'));
@@ -66,7 +63,6 @@ export default function VideoPreview() {
           return;
         }
 
-        // 2. 编译代码
         const result = await compileTypeScript(codeToCompile);
         if (!result.success) {
           setCompilationError(result.error || 'Compilation failed');
@@ -74,197 +70,89 @@ export default function VideoPreview() {
           return;
         }
 
-        // 3. 创建组件（使用 ESM + 动态 import，最佳实践）
-        // 这是 CodeSandbox、StackBlitz 等在线 IDE 使用的标准方法
         const compiledCode = result.code || '';
-        
-        // 动态导入依赖
         const ReactModule = await import('react');
         const remotionModule = await import('remotion');
-        
-        // React 可能是 default export 或命名 export
         const React = ReactModule.default || ReactModule;
         const remotion = remotionModule.default || remotionModule;
 
-        // 使用模块包装器执行 ESM 代码（最佳实践）
-        // 将编译后的 ESM 代码转换为可执行的函数，注入 React 和 remotion
-        
-        // 从 remotion 解构所有常用 API（方便用户直接使用，无需导入）
-        // 包括：组件、Hooks、工具函数、动画函数等
         const {
-          // 组件
-          AbsoluteFill,
-          Sequence,
-          Video,
-          Audio,
-          Img,
-          OffthreadVideo,
-          // Hooks
-          useCurrentFrame,
-          useVideoConfig,
-          // 工具函数
-          interpolate,
-          spring,
-          staticFile: remotionStaticFile,
-          // Easing
-          Easing,
-          // 其他常用 API
-          continueRender,
-          delayRender,
-          getInputProps,
+          AbsoluteFill, Sequence, Video, Audio, Img, staticFile,
+          useCurrentFrame, useVideoConfig, interpolate, spring,
+          Easing, continueRender, delayRender, getInputProps
         } = remotion;
 
-        // 创建自定义 staticFile 函数，支持从资源库获取
-        let staticFile: (pathOrId: string) => string;
-        try {
-          const { useAssetsStore } = await import('@/lib/store/assets-store');
-          const getAssetUrl = useAssetsStore.getState().getAssetUrl;
+        const executableCode = `
+          ${compiledCode}
           
-          // 自定义 staticFile：优先从资源库获取，否则使用 remotion 的 staticFile
-          staticFile = (pathOrId: string): string => {
-            // 如果是以 asset_ 开头的 ID，从资源库获取
-            if (pathOrId.startsWith('asset_')) {
-              const url = getAssetUrl(pathOrId);
-              if (url) {
-                return url;
-              }
-            }
-            // 否则使用 remotion 的 staticFile
-            return remotionStaticFile(pathOrId);
-          };
-        } catch (error) {
-          // 如果无法加载 assets store，使用 remotion 的 staticFile
-          staticFile = remotionStaticFile;
-        }
-
-        // 创建模块执行环境（CommonJS 风格）
-        const moduleExports: any = {};
-        const module = { exports: moduleExports };
-        const exports = moduleExports;
-
-        // 将 ESM 代码包装为可执行的函数
-        // 处理各种 export 格式
-        let executableCode = compiledCode;
-        
-        // 1. 处理 export const MyVideo = ...
-        executableCode = executableCode.replace(
-          /export\s+const\s+MyVideo\s*=/g,
-          'const MyVideo ='
-        );
-        
-        // 2. 处理 export { MyVideo }
-        executableCode = executableCode.replace(
-          /export\s+\{\s*MyVideo\s*\};?/g,
-          'module.exports = { MyVideo };'
-        );
-        
-        // 3. 处理 export { MyVideo as default } 或其他形式
-        executableCode = executableCode.replace(
-          /export\s+\{[^}]*MyVideo[^}]*\};?/g,
-          'module.exports = { MyVideo };'
-        );
-        
-        // 4. 确保最后有导出语句
-        if (!executableCode.includes('module.exports')) {
-          // 如果代码中有 MyVideo 但没有导出，添加导出
-          if (executableCode.includes('const MyVideo') || executableCode.includes('let MyVideo') || executableCode.includes('var MyVideo')) {
-            executableCode += '\nmodule.exports = { MyVideo };';
+          // 确保 MyVideo 被导出
+          if (typeof MyVideo === 'undefined') {
+            throw new Error('MyVideo component is not defined. Make sure you export a component named "MyVideo".');
           }
-        }
+        `;
 
-        // 执行代码，注入 React 和 remotion 以及所有常用 API
-        // 这样用户可以直接使用这些 API，无需导入
-        // 注意：如果某个 API 不存在，使用 remotion 对象作为后备（用户可以使用 remotion.spring 等）
-        // eslint-disable-next-line no-eval
-        const executeModule = new Function(
+        const moduleExports: any = {};
+        const moduleFactory = new Function(
           'React',
           'remotion',
-          'module',
-          'exports',
-          // 组件
           'AbsoluteFill',
           'Sequence',
           'Video',
           'Audio',
           'Img',
-          'OffthreadVideo',
-          // Hooks
+          'staticFile',
           'useCurrentFrame',
           'useVideoConfig',
-          // 工具函数
           'interpolate',
           'spring',
-          'staticFile',
-          // Easing
           'Easing',
-          // 其他常用 API
           'continueRender',
           'delayRender',
           'getInputProps',
+          'module',
+          'exports',
           executableCode
         );
 
-        // 执行模块，获取导出的组件
-        // 注入所有 Remotion API，用户可以直接使用
-        // 如果某个 API 不存在，用户也可以使用 remotion.spring 等方式访问
-        executeModule(
+        moduleFactory(
           React,
           remotion,
-          module,
-          exports,
-          // 组件
           AbsoluteFill,
           Sequence,
           Video,
           Audio,
           Img,
-          OffthreadVideo,
-          // Hooks
+          staticFile,
           useCurrentFrame,
           useVideoConfig,
-          // 工具函数
           interpolate,
           spring,
-          staticFile,
-          // Easing
           Easing,
-          // 其他常用 API
           continueRender,
           delayRender,
-          getInputProps
+          getInputProps,
+          { exports: moduleExports },
+          moduleExports
         );
 
-        // 尝试多种方式获取组件
         let ComponentClass = moduleExports.MyVideo;
         
-        // 如果 module.exports 中没有，尝试从全局作用域获取
         if (!ComponentClass) {
           try {
-            // eslint-disable-next-line no-eval
             const globalScope = eval('(function() { ' + executableCode + '; return typeof MyVideo !== "undefined" ? MyVideo : null; })()');
             ComponentClass = globalScope;
           } catch (evalError) {
-            // eval 失败，继续尝试其他方法
             console.warn('Failed to get component from global scope:', evalError);
           }
         }
         
-        // 如果还是没有，检查是否有 MyVideo 变量但没有正确导出
         if (!ComponentClass) {
-          // 输出调试信息
-          console.error('Failed to extract MyVideo component. Debug info:', {
-            moduleExports,
-            hasMyVideoInCode: executableCode.includes('MyVideo'),
-            compiledCodePreview: compiledCode.substring(0, 300),
-          });
-          
           throw new Error(
             'Failed to extract MyVideo component. Make sure your code exports a component named "MyVideo".\n' +
             'Example: export const MyVideo = () => { ... } or export { MyVideo }'
           );
         }
 
-        // 验证组件是否有效
         if (typeof ComponentClass !== 'function') {
           throw new Error(
             `MyVideo is not a valid React component. Got: ${typeof ComponentClass}. ` +
@@ -272,53 +160,14 @@ export default function VideoPreview() {
           );
         }
 
-        console.log('✅ Component extracted successfully:', {
-          componentType: typeof ComponentClass,
-          componentName: ComponentClass.name || 'Anonymous',
-          isFunction: typeof ComponentClass === 'function',
-          componentPreview: ComponentClass.toString().substring(0, 200),
-        });
-
-        // 直接使用组件，Remotion Player 可以直接使用函数组件
-        // 不需要复杂的包装，只需要确保组件是有效的 React 组件
-        console.log('✅ Component ready, setting to state:', {
-          componentType: typeof ComponentClass,
-          componentName: ComponentClass.name || 'Anonymous',
-          isFunction: typeof ComponentClass === 'function',
-        });
-
-        // 验证组件是否有效
-        if (typeof ComponentClass !== 'function') {
-          throw new Error(
-            `MyVideo is not a valid React component. Got: ${typeof ComponentClass}. ` +
-            'Make sure your code exports a function component named "MyVideo".'
-          );
-        }
-
-        // 测试组件是否可以安全创建（不实际渲染，只检查）
-        try {
-          // 创建一个测试实例来验证组件
-          const testProps = {};
-          const testElement = React.createElement(ComponentClass, testProps);
-          
-          if (!testElement || typeof testElement !== 'object') {
-            throw new Error('Component creation test failed');
-          }
-        } catch (testError: any) {
-          console.warn('Component validation warning:', testError);
-          // 不阻止，继续使用组件（可能只是测试环境问题）
-        }
-
-        // 使用 useMemo 包装组件，确保组件引用稳定，避免 React Hooks 顺序问题
-        // 直接设置组件，但使用稳定的引用
         const StableComponent = ComponentClass;
         setComponent(() => StableComponent);
-        setRenderError(null); // 清除之前的渲染错误
+        setRenderError(null);
       } catch (error: any) {
         console.error('❌ Component extraction failed:', error);
-        // 记录错误，但保留上一次成功的组件，避免预览消失
         setCompilationError(error.message || 'Unknown error');
-        setRenderError(error.message || 'Unknown error');
+        setComponent(null);
+        setRenderError(null);
       } finally {
         setCompiling(false);
       }
@@ -326,7 +175,6 @@ export default function VideoPreview() {
     [setCompiling, setCompilationError]
   );
 
-  // 防抖编译
   const debouncedCompile = useCallback(
     debounce((code: string) => compileAndValidate(code), 1000),
     [compileAndValidate]
@@ -337,13 +185,11 @@ export default function VideoPreview() {
     return () => debouncedCompile.cancel();
   }, [code, debouncedCompile]);
 
-  // 监听强制重新编译事件
   useEffect(() => {
     const handleForceRecompile = () => {
       console.log('Force recompiling code...');
       setRenderError(null);
       setComponent(null);
-      // 触发重新编译
       debouncedCompile(code);
     };
 
@@ -353,13 +199,11 @@ export default function VideoPreview() {
     };
   }, [code, debouncedCompile]);
 
-  // 使用 useMemo 确保组件引用稳定，避免 React Hooks 顺序问题
   const stableComponent = useMemo(() => {
     if (!component) return null;
     return component;
   }, [component]);
 
-  // 处理视频导出 - 使用新的导出对话框
   const handleExport = useCallback(async (settings: ExportSettings) => {
     if (!stableComponent) {
       alert('请先编译代码，生成视频组件');
@@ -379,61 +223,27 @@ export default function VideoPreview() {
           width,
           height,
         },
-        (progress) => {
+        (progress: { renderedFrames: number; encodedFrames: number; totalFrames: number; stage: string }) => {
           setExportProgress({
             renderedFrames: progress.renderedFrames,
             encodedFrames: progress.encodedFrames,
           });
-          const progressPercent = Math.round((progress.encodedFrames / progress.totalFrames) * 100);
-          console.log(`导出进度: ${progressPercent}% (${progress.stage})`);
         }
       );
-      
       setExportProgress(null);
-      alert('导出成功！');
+      alert('视频导出成功！');
     } catch (error: any) {
       console.error('导出失败:', error);
       setExportProgress(null);
-      alert(`导出失败: ${error.message}`);
+      alert(`视频导出失败: ${error.message}`);
     } finally {
       setIsExporting(false);
     }
   }, [stableComponent, durationInFrames, fps, width, height]);
 
-  // 调试信息
-  useEffect(() => {
-    const store = useEditorStore.getState();
-    if (component) {
-      console.log('📹 VideoPreview: Component ready for Player', {
-        componentType: typeof component,
-        componentName: component.displayName || component.name || 'Unknown',
-        hasComponent: !!component,
-        stableComponent: !!stableComponent,
-        playerRef: !!playerRef.current,
-      });
-    } else {
-      console.log('⏳ VideoPreview: Waiting for component...', {
-        isCompiling: store.isCompiling,
-        compilationError: store.compilationError,
-        validationError,
-        codeLength: code.length,
-      });
-    }
-  }, [component, stableComponent, code, validationError]);
-
-  // 监听 Player 加载状态
-  useEffect(() => {
-    if (stableComponent && playerRef.current) {
-      console.log('✅ Player ref is ready:', {
-        hasRef: !!playerRef.current,
-        refType: typeof playerRef.current,
-      });
-    }
-  }, [stableComponent, playerRef]);
-
   if (!component) {
     return (
-      <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
+      <div className="w-full h-full flex items-center justify-center bg-[#1e1e1e]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-[#007acc]" />
           <p className="text-[#cccccc]">Compiling and validating code...</p>
@@ -443,17 +253,51 @@ export default function VideoPreview() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#1e1e1e]">
-      {/* 错误提示（非阻塞，保留编辑器与预览） */}
+    <div className="w-full h-full flex flex-col bg-[#1e1e1e] overflow-hidden">
+      {/* 顶部工具栏 - VSCode 风格 */}
+      <div className="h-9 flex-shrink-0 bg-[#252526] border-b border-[#3e3e42] flex items-center justify-between px-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-medium text-[#cccccc]">视频预览</h3>
+          {component && (
+            <span className="text-xs text-[#969696]">
+              {component.displayName || component.name || 'Unknown'}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowVideoSettings(!showVideoSettings)}
+            className="h-6 px-2 text-xs"
+          >
+            <Settings className="w-3 h-3 mr-1" />
+            设置
+          </Button>
+          {stableComponent && (
+            <Button
+              size="sm"
+              onClick={() => setShowExportDialog(true)}
+              className="h-6 px-2 text-xs bg-[#007acc] hover:bg-[#005a9e] text-white"
+              disabled={isExporting}
+            >
+              <Download className="w-3 h-3 mr-1" />
+              {isExporting ? '导出中...' : '导出'}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* 错误提示（非阻塞） */}
       {(validationError || compilationError || renderError) && (
-        <div className="px-4 pt-3">
+        <div className="flex-shrink-0 px-4 pt-2 pb-2 bg-[#1e1e1e] border-b border-[#3e3e42]">
           {validationError && (
-            <div className="mb-2 rounded border border-red-500/40 bg-red-900/20 px-3 py-2 text-sm text-red-200">
+            <div className="mb-1 rounded border border-red-500/40 bg-red-900/20 px-3 py-1.5 text-xs text-red-200">
               <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5" />
-                <div className="flex-1">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
                   <div className="font-medium">安全校验失败</div>
-                  <pre className="mt-1 whitespace-pre-wrap text-xs text-red-200/90">
+                  <pre className="mt-0.5 whitespace-pre-wrap text-[10px] text-red-200/90 overflow-auto max-h-20">
                     {validationError}
                   </pre>
                 </div>
@@ -461,12 +305,12 @@ export default function VideoPreview() {
             </div>
           )}
           {compilationError && (
-            <div className="mb-2 rounded border border-orange-500/40 bg-orange-900/20 px-3 py-2 text-sm text-orange-200">
+            <div className="mb-1 rounded border border-orange-500/40 bg-orange-900/20 px-3 py-1.5 text-xs text-orange-200">
               <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5" />
-                <div className="flex-1">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
                   <div className="font-medium">编译错误</div>
-                  <pre className="mt-1 whitespace-pre-wrap text-xs text-orange-200/90">
+                  <pre className="mt-0.5 whitespace-pre-wrap text-[10px] text-orange-200/90 overflow-auto max-h-20">
                     {compilationError}
                   </pre>
                 </div>
@@ -474,12 +318,12 @@ export default function VideoPreview() {
             </div>
           )}
           {renderError && (
-            <div className="mb-2 rounded border border-red-500/40 bg-red-900/20 px-3 py-2 text-sm text-red-200">
+            <div className="mb-1 rounded border border-red-500/40 bg-red-900/20 px-3 py-1.5 text-xs text-red-200">
               <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5" />
-                <div className="flex-1">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
                   <div className="font-medium">渲染错误</div>
-                  <p className="mt-1 whitespace-pre-wrap text-xs text-red-200/90">
+                  <p className="mt-0.5 whitespace-pre-wrap text-[10px] text-red-200/90">
                     {renderError}
                   </p>
                 </div>
@@ -488,251 +332,226 @@ export default function VideoPreview() {
           )}
         </div>
       )}
-      <div className="p-4 border-b border-[#3e3e42]">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-medium text-[#cccccc]">Video Preview</h3>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowVideoSettings(!showVideoSettings)}
-                className="h-6 px-2"
-              >
-                <Settings className="w-3 h-3" />
-              </Button>
-            </div>
-            {component && (
-              <p className="text-xs text-[#969696] mt-1">
-                Component: {component.displayName || component.name || 'Unknown'}
+
+      {/* 视频设置面板（可折叠） */}
+      {showVideoSettings && (
+        <div className="flex-shrink-0 p-3 bg-[#252526] border-b border-[#3e3e42]">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] text-[#969696] mb-1 block">时长（帧）</label>
+              <Input
+                type="number"
+                value={tempVideoConfig.durationInFrames}
+                onChange={(e) => setTempVideoConfig({
+                  ...tempVideoConfig,
+                  durationInFrames: Math.max(1, parseInt(e.target.value) || 1),
+                })}
+                className="h-7 text-xs"
+                min={1}
+              />
+              <p className="text-[10px] text-[#969696] mt-0.5">
+                {(tempVideoConfig.durationInFrames / tempVideoConfig.fps).toFixed(1)} 秒
               </p>
-            )}
-            <p className="text-xs text-[#969696] mt-1">
-              时长: {(durationInFrames / fps).toFixed(1)}秒 ({durationInFrames} 帧 @ {fps} fps) | 分辨率: {width}×{height}
-            </p>
-            {isExporting && exportProgress && (
-              <div className="mt-2">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin text-[#007acc]" />
-                  <span className="text-xs text-[#007acc]">
-                    导出中: {Math.round((exportProgress.encodedFrames / durationInFrames) * 100)}%
-                  </span>
-                </div>
-                <div className="mt-1 w-full bg-[#3c3c3c] rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className="bg-[#007acc] h-full transition-all duration-300"
-                    style={{ width: `${(exportProgress.encodedFrames / durationInFrames) * 100}%` }}
-                  />
-                </div>
-                <p className="text-xs text-[#969696] mt-1">
-                  已渲染: {exportProgress.renderedFrames}/{durationInFrames} 帧 | 
-                  已编码: {exportProgress.encodedFrames}/{durationInFrames} 帧
-                </p>
-              </div>
-            )}
+            </div>
+            <div>
+              <label className="text-[10px] text-[#969696] mb-1 block">帧率 (fps)</label>
+              <Input
+                type="number"
+                value={tempVideoConfig.fps}
+                onChange={(e) => setTempVideoConfig({
+                  ...tempVideoConfig,
+                  fps: Math.max(1, Math.min(60, parseInt(e.target.value) || 30)),
+                })}
+                className="h-7 text-xs"
+                min={1}
+                max={60}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-[#969696] mb-1 block">宽度 (px)</label>
+              <Input
+                type="number"
+                value={tempVideoConfig.width}
+                onChange={(e) => setTempVideoConfig({
+                  ...tempVideoConfig,
+                  width: Math.max(1, parseInt(e.target.value) || 1920),
+                })}
+                className="h-7 text-xs"
+                min={1}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-[#969696] mb-1 block">高度 (px)</label>
+              <Input
+                type="number"
+                value={tempVideoConfig.height}
+                onChange={(e) => setTempVideoConfig({
+                  ...tempVideoConfig,
+                  height: Math.max(1, parseInt(e.target.value) || 1080),
+                })}
+                className="h-7 text-xs"
+                min={1}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            <Button
+              size="sm"
+              onClick={handleSaveVideoConfig}
+              className="h-6 text-xs"
+            >
+              保存
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setTempVideoConfig(videoConfig);
+                setShowVideoSettings(false);
+              }}
+              className="h-6 text-xs"
+            >
+              取消
+            </Button>
           </div>
         </div>
-        
-        {/* 视频设置面板 */}
-        {showVideoSettings && (
-          <div className="mt-4 p-4 bg-[#252526] rounded-lg border border-[#3e3e42]">
-            <h4 className="text-xs font-medium text-[#cccccc] mb-3">视频设置</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-[#969696] mb-1 block">时长（帧）</label>
-                <Input
-                  type="number"
-                  value={tempVideoConfig.durationInFrames}
-                  onChange={(e) => setTempVideoConfig({
-                    ...tempVideoConfig,
-                    durationInFrames: Math.max(1, parseInt(e.target.value) || 1),
-                  })}
-                  className="h-8 text-xs"
-                  min={1}
-                />
-                <p className="text-xs text-[#969696] mt-1">
-                  {(tempVideoConfig.durationInFrames / tempVideoConfig.fps).toFixed(1)} 秒
-                </p>
-              </div>
-              <div>
-                <label className="text-xs text-[#969696] mb-1 block">帧率 (fps)</label>
-                <Input
-                  type="number"
-                  value={tempVideoConfig.fps}
-                  onChange={(e) => setTempVideoConfig({
-                    ...tempVideoConfig,
-                    fps: Math.max(1, Math.min(60, parseInt(e.target.value) || 30)),
-                  })}
-                  className="h-8 text-xs"
-                  min={1}
-                  max={60}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-[#969696] mb-1 block">宽度 (px)</label>
-                <Input
-                  type="number"
-                  value={tempVideoConfig.width}
-                  onChange={(e) => setTempVideoConfig({
-                    ...tempVideoConfig,
-                    width: Math.max(1, parseInt(e.target.value) || 1920),
-                  })}
-                  className="h-8 text-xs"
-                  min={1}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-[#969696] mb-1 block">高度 (px)</label>
-                <Input
-                  type="number"
-                  value={tempVideoConfig.height}
-                  onChange={(e) => setTempVideoConfig({
-                    ...tempVideoConfig,
-                    height: Math.max(1, parseInt(e.target.value) || 1080),
-                  })}
-                  className="h-8 text-xs"
-                  min={1}
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-2 mt-4">
-              <Button
-                size="sm"
-                onClick={handleSaveVideoConfig}
-                className="h-7 text-xs"
-              >
-                保存
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setTempVideoConfig(videoConfig);
-                  setShowVideoSettings(false);
-                }}
-                className="h-7 text-xs"
-              >
-                取消
-              </Button>
-            </div>
+      )}
+
+      {/* 导出进度 */}
+      {isExporting && exportProgress && (
+        <div className="flex-shrink-0 px-4 py-2 bg-[#252526] border-b border-[#3e3e42]">
+          <div className="flex items-center gap-2 mb-1">
+            <Loader2 className="w-3 h-3 animate-spin text-[#007acc]" />
+            <span className="text-xs text-[#007acc]">
+              导出中: {Math.round((exportProgress.encodedFrames / durationInFrames) * 100)}%
+            </span>
           </div>
-        )}
-      </div>
-      <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
-        <div className="bg-black rounded-lg overflow-hidden shadow-2xl w-full max-w-4xl">
-          {stableComponent ? (
-            <ErrorBoundary
-              onError={(error: Error) => {
-                console.error('Outer ErrorBoundary caught error:', error);
-                setRenderError(error.message || 'Component render failed');
-              }}
-              fallbackRender={({ error, resetErrorBoundary }) => (
-                <div className="w-full h-96 flex items-center justify-center text-[#969696]">
-                  <div className="text-center max-w-md px-4">
-                    <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-red-300 mb-2">
-                      组件渲染错误
-                    </h3>
-                    <p className="text-sm text-[#cccccc] mb-4">
-                      您的代码在渲染时发生了错误。请检查代码并修复问题。
-                    </p>
-                    {renderError && (
-                      <pre className="text-xs text-red-400 bg-red-900/30 p-3 rounded overflow-auto text-left max-h-32 mb-4">
-                        {renderError}
-                      </pre>
-                    )}
-                    <div className="flex gap-2 justify-center">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setRenderError(null);
-                          resetErrorBoundary();
-                        }}
-                      >
-                        重试
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setRenderError(null);
-                          setComponent(null);
-                          // 触发重新编译
-                          const event = new CustomEvent('force-recompile');
-                          window.dispatchEvent(event);
-                        }}
-                      >
-                        清除并重新编译
-                      </Button>
+          <div className="w-full bg-[#3c3c3c] rounded-full h-1.5 overflow-hidden">
+            <div
+              className="bg-[#007acc] h-full transition-all duration-300"
+              style={{ width: `${(exportProgress.encodedFrames / durationInFrames) * 100}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-[#969696] mt-1">
+            已渲染: {exportProgress.renderedFrames}/{durationInFrames} 帧 | 
+            已编码: {exportProgress.encodedFrames}/{durationInFrames} 帧
+          </p>
+        </div>
+      )}
+
+      {/* 主内容区 - 支持拖动分割（视频播放器 + 时间轴） */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <Allotment
+          vertical
+          proportionalLayout={false}
+          onChange={(sizes) => {
+            if (sizes.length === 2) {
+              const total = sizes[0] + sizes[1];
+              setPlayerHeight((sizes[0] / total) * 100);
+            }
+          }}
+        >
+          {/* 视频播放器区域 */}
+          <Allotment.Pane 
+            minSize={200}
+            preferredSize={playerHeight ? `${playerHeight}%` : '60%'}
+          >
+            <div className="w-full h-full flex items-center justify-center p-4 bg-[#1e1e1e] overflow-auto">
+              {stableComponent ? (
+                <ErrorBoundary
+                  onError={(error: Error) => {
+                    console.error('Player ErrorBoundary caught error:', error);
+                    setRenderError(error.message || 'Component render failed');
+                  }}
+                  fallbackRender={({ error, resetErrorBoundary }) => (
+                    <div className="w-full h-full flex items-center justify-center text-[#969696]">
+                      <div className="text-center max-w-md px-4">
+                        <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-red-300 mb-2">
+                          组件渲染错误
+                        </h3>
+                        <p className="text-sm text-[#cccccc] mb-4">
+                          您的代码在渲染时发生了错误。请检查代码并修复问题。
+                        </p>
+                        {renderError && (
+                          <pre className="text-xs text-red-400 bg-red-900/30 p-3 rounded overflow-auto text-left max-h-32 mb-4">
+                            {renderError}
+                          </pre>
+                        )}
+                        <div className="flex gap-2 justify-center">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setRenderError(null);
+                              resetErrorBoundary();
+                            }}
+                          >
+                            重试
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setRenderError(null);
+                              setComponent(null);
+                              const event = new CustomEvent('force-recompile');
+                              window.dispatchEvent(event);
+                            }}
+                          >
+                            清除并重新编译
+                          </Button>
+                        </div>
+                      </div>
                     </div>
+                  )}
+                >
+                  <div className="w-full max-w-6xl bg-black rounded-lg overflow-hidden shadow-2xl" style={{ minHeight: '400px' }}>
+                    <Player
+                      ref={playerRef}
+                      component={stableComponent}
+                      durationInFrames={durationInFrames}
+                      compositionWidth={width}
+                      compositionHeight={height}
+                      fps={fps}
+                      controls={true}
+                      loop
+                      clickToPlay={false}
+                      doubleClickToFullscreen
+                      acknowledgeRemotionLicense={true}
+                      style={{
+                        width: '100%',
+                        maxWidth: '100%',
+                        height: 'auto',
+                        minHeight: '400px',
+                      }}
+                    />
+                  </div>
+                </ErrorBoundary>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-[#969696]">
+                  <div className="text-center">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                    <p>No component to preview</p>
+                    <p className="text-xs text-[#969696] mt-2">
+                      {useEditorStore.getState().isCompiling ? 'Compiling...' : 'Waiting for code...'}
+                    </p>
                   </div>
                 </div>
               )}
-            >
-              <div className="w-full" style={{ minHeight: '400px', position: 'relative' }}>
-                {/* Player 使用已经安全包装的组件 */}
-                <Player
-                  ref={playerRef}
-                  component={stableComponent}
-                  durationInFrames={durationInFrames}
-                  compositionWidth={width}
-                  compositionHeight={height}
-                  fps={fps}
-                  controls={true}
-                  loop
-                  clickToPlay={false}
-                  doubleClickToFullscreen
-                  acknowledgeRemotionLicense={true}
-                  style={{
-                    width: '100%',
-                    maxWidth: '100%',
-                    height: 'auto',
-                    minHeight: '400px',
-                  }}
-                />
-                {/* 调试信息覆盖层 */}
-                {process.env.NODE_ENV === 'development' && (
-                  <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded z-10">
-                    <div>Component: {component?.displayName || component?.name || 'Unknown'}</div>
-                    <div>Frame: {playerRef.current?.getCurrentFrame?.()?.toFixed(0) || 'N/A'}</div>
-                    <div>Playing: {playerRef.current?.isPlaying?.() ? 'Yes' : 'No'}</div>
-                  </div>
-                )}
-              </div>
-            </ErrorBoundary>
-          ) : (
-            <div className="w-full h-96 flex items-center justify-center text-[#969696]">
-              <div className="text-center">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-                <p>No component to preview</p>
-                <p className="text-xs text-[#969696] mt-2">
-                  {useEditorStore.getState().isCompiling ? 'Compiling...' : 'Waiting for code...'}
-                </p>
-              </div>
             </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Timeline */}
-      {stableComponent && (
-        <Timeline playerRef={playerRef} />
-      )}
+          </Allotment.Pane>
 
-      {/* 导出按钮（在预览区域） */}
-      {stableComponent && (
-        <div className="absolute top-4 right-4 z-20">
-          <Button
-            size="sm"
-            onClick={() => setShowExportDialog(true)}
-            className="bg-[#007acc] hover:bg-[#005a9e] text-white"
-            disabled={isExporting}
+          {/* 时间轴区域 */}
+          <Allotment.Pane 
+            minSize={120}
+            preferredSize={playerHeight ? `${100 - playerHeight}%` : '40%'}
           >
-            <Download className="w-4 h-4 mr-2" />
-            {isExporting ? '导出中...' : '导出'}
-          </Button>
-        </div>
-      )}
+            <div className="w-full h-full bg-[#1e1e1e]">
+              {stableComponent && <Timeline playerRef={playerRef} />}
+            </div>
+          </Allotment.Pane>
+        </Allotment>
+      </div>
 
       {/* 导出对话框 */}
       <ExportDialog
@@ -747,4 +566,3 @@ export default function VideoPreview() {
     </div>
   );
 }
-
