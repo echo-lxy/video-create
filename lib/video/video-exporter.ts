@@ -42,48 +42,27 @@ export async function exportVideo(
       height: options.height,
     });
 
-    // 使用 Remotion 官方客户端渲染 API
-    // 参考文档：https://www.remotion.dev/docs/client-side-rendering/
-    const { getBlob } = await renderMediaOnWeb({
-      composition: {
-        component: options.component,
-        durationInFrames: options.durationInFrames,
-        fps: options.fps,
-        width: options.width,
-        height: options.height,
-        calculateMetadata: null,
-        id: 'my-video-composition',
-      },
-      inputProps: {},
-      // 视频编码器：h264（最佳兼容性）、h265（更小文件）、vp8/vp9/av1（WebM）
-      videoCodec: options.codec || 'h264',
-      // 视频质量：'very-low' | 'low' | 'medium' | 'high' | 'very-high' | number (bitrate in bps)
-      videoBitrate: options.quality || 'high',
-      // 容器格式：mp4（H.264/H.265）或 webm（VP8/VP9/AV1）
-      container: (options.codec === 'vp8' || options.codec === 'vp9' || options.codec === 'av1') ? 'webm' : 'mp4',
-      // 禁用音频（我们的视频没有音频轨道）
-      muted: true,
-      // 进度回调
-      onProgress: options.onProgress || null,
-      // 硬件加速：优先使用硬件加速（如果可用）
-      hardwareAcceleration: 'prefer-hardware',
-    });
-
-    // 获取视频 Blob
-    const blob = await getBlob();
-    
-    // 生成文件名
-    const timestamp = Date.now();
-    const filename = options.outputPath || `video-${timestamp}.mp4`;
-    
-    // 下载视频
-    saveAs(blob, filename);
-    
-    console.log('✅ 视频导出成功:', filename, {
-      size: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
-      type: blob.type,
-    });
-    
+    // 尝试使用 Remotion 官方客户端渲染 API
+    // 如果硬件加速失败（shader 错误），自动回退到软件渲染
+    try {
+      return await renderWithRemotion(options, 'prefer-hardware');
+    } catch (hardwareError: any) {
+      // 如果是 shader 相关错误，尝试软件渲染
+      if (hardwareError.message?.includes('shader') || 
+          hardwareError.message?.includes('Shader') ||
+          hardwareError.message?.includes('WebGL')) {
+        console.warn('⚠️ 硬件加速失败，尝试软件渲染...', hardwareError.message);
+        try {
+          return await renderWithRemotion(options, 'prefer-software');
+        } catch (softwareError: any) {
+          console.warn('⚠️ 软件渲染也失败，回退到屏幕录制...', softwareError.message);
+          // 如果软件渲染也失败，回退到屏幕录制
+          return await startScreenRecording(options);
+        }
+      }
+      // 其他错误，直接抛出
+      throw hardwareError;
+    }
   } catch (error: any) {
     console.error('❌ 视频导出失败:', error);
     
@@ -95,8 +74,67 @@ export async function exportVideo(
       return await startScreenRecording(options);
     }
     
+    // 如果是 shader 错误，也回退到屏幕录制
+    if (error.message?.includes('shader') || error.message?.includes('Shader')) {
+      console.warn('⚠️ WebGL shader 错误，回退到屏幕录制方案...');
+      return await startScreenRecording(options);
+    }
+    
     throw new Error(`视频导出失败: ${error.message || '未知错误'}`);
   }
+}
+
+/**
+ * 使用 Remotion 客户端渲染 API 渲染视频
+ * @param options 导出选项
+ * @param hardwareAcceleration 硬件加速选项
+ */
+async function renderWithRemotion(
+  options: ExportOptions,
+  hardwareAcceleration: 'prefer-hardware' | 'prefer-software' | 'no-preference'
+): Promise<void> {
+  // 使用 Remotion 官方客户端渲染 API
+  // 参考文档：https://www.remotion.dev/docs/client-side-rendering/
+  const { getBlob } = await renderMediaOnWeb({
+    composition: {
+      component: options.component,
+      durationInFrames: options.durationInFrames,
+      fps: options.fps,
+      width: options.width,
+      height: options.height,
+      calculateMetadata: null,
+      id: 'my-video-composition',
+    },
+    inputProps: {},
+    // 视频编码器：h264（最佳兼容性）、h265（更小文件）、vp8/vp9/av1（WebM）
+    videoCodec: options.codec || 'h264',
+    // 视频质量：'very-low' | 'low' | 'medium' | 'high' | 'very-high' | number (bitrate in bps)
+    videoBitrate: options.quality || 'high',
+    // 容器格式：mp4（H.264/H.265）或 webm（VP8/VP9/AV1）
+    container: (options.codec === 'vp8' || options.codec === 'vp9' || options.codec === 'av1') ? 'webm' : 'mp4',
+    // 禁用音频（我们的视频没有音频轨道）
+    muted: true,
+    // 进度回调
+    onProgress: options.onProgress || null,
+    // 硬件加速选项：根据错误自动调整
+    hardwareAcceleration: hardwareAcceleration,
+  });
+
+  // 获取视频 Blob
+  const blob = await getBlob();
+  
+  // 生成文件名
+  const timestamp = Date.now();
+  const filename = options.outputPath || `video-${timestamp}.mp4`;
+  
+  // 下载视频
+  saveAs(blob, filename);
+  
+  console.log('✅ 视频导出成功:', filename, {
+    size: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
+    type: blob.type,
+    hardwareAcceleration,
+  });
 }
 
 /**
