@@ -39,6 +39,9 @@ curl -L -o vs/language/typescript/tsWorker.js https://cdn.jsdelivr.net/npm/monac
 echo "  - workerMain.js"
 curl -L -o vs/base/common/worker/workerMain.js https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/base/common/worker/workerMain.js
 
+echo "  - editor.main.nls.js (国际化语言文件)"
+curl -L -o vs/editor/editor.main.nls.js https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/editor/editor.main.nls.js
+
 cd ../../
 
 echo ""

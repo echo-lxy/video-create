@@ -8,6 +8,9 @@ import { Loader2 } from 'lucide-react';
 
 // 配置 Monaco Editor 使用本地资源（优化版 - 优先本地，快速回退）
 if (typeof window !== 'undefined') {
+  // 禁用 source map 加载，避免 404 错误
+  (window as any).__MONACO_EDITOR_SOURCE_MAP__ = false;
+  
   const isProduction = window.location.hostname === 'echo-lxy.github.io' || 
     process.env.NODE_ENV === 'production';
   const basePath = isProduction ? '/video-create' : '';
@@ -123,6 +126,12 @@ export default function CodeEditor() {
 
   function handleEditorWillMount(monaco: Monaco) {
     try {
+      // 禁用 source map 加载，避免 404 错误
+      if (monaco?.editor) {
+        // 设置环境变量，禁用 source map
+        (window as any).__MONACO_EDITOR_SOURCE_MAP__ = false;
+      }
+
       // 在编辑器挂载前进行一些初始化
       // 延迟加载 TypeScript 服务以加快初始加载
       if (monaco?.languages?.typescript) {

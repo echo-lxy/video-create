@@ -20,19 +20,23 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" className="dark">
       <head>
-        {/* 预加载本地资源（开发环境直接使用 /monaco/vs） */}
-        <link
-          rel="preload"
-          href={isProduction ? `${basePath}/esbuild/esbuild.wasm` : '/esbuild/esbuild.wasm'}
-          as="fetch"
-          crossOrigin="anonymous"
-        />
-        <link
-          rel="preload"
-          href={isProduction ? `${basePath}/monaco/vs/loader.js` : '/monaco/vs/loader.js'}
-          as="script"
-          crossOrigin="anonymous"
-        />
+        {/* 预加载本地资源（仅在需要时预加载，避免警告） */}
+        {isProduction && (
+          <>
+            <link
+              rel="prefetch"
+              href={`${basePath}/esbuild/esbuild.wasm`}
+              as="fetch"
+              crossOrigin="anonymous"
+            />
+            <link
+              rel="prefetch"
+              href={`${basePath}/monaco/vs/loader.js`}
+              as="script"
+              crossOrigin="anonymous"
+            />
+          </>
+        )}
         {/* DNS 预解析（优先 unpkg.com，通常更快） */}
         <link rel="dns-prefetch" href="https://unpkg.com" />
         <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
