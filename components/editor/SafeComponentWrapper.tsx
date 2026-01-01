@@ -195,18 +195,4 @@ export function createSafeComponent(
   };
 }
 
-/**
- * HOC: 将组件包装为安全组件
- */
-export function withSafeWrapper<P extends object>(
-  Component: React.ComponentType<P>
-): React.ComponentType<P> {
-  return function SafeWrappedComponent(props: P) {
-    return (
-      <SafeComponentWrapper component={Component} {...props}>
-        {React.createElement(Component, props)}
-      </SafeComponentWrapper>
-    );
-  };
-}
 

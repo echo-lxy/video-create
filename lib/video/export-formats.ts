@@ -131,12 +131,16 @@ async function exportVideo(
       videoBitrate: options.quality,
       container: options.container,
       muted: true,
-      onProgress: onProgress ? (progress) => {
+      onProgress: onProgress ? (progress: any) => {
+        // @remotion/web-renderer 的进度对象结构可能不同
+        // 使用安全的属性访问
+        const rendered = progress.rendered ?? progress.renderedFrames ?? 0;
+        const encoded = progress.encoded ?? progress.encodedFrames ?? 0;
         onProgress({
-          renderedFrames: progress.rendered,
-          encodedFrames: progress.encoded,
+          renderedFrames: rendered,
+          encodedFrames: encoded,
           totalFrames: duration,
-          stage: progress.encoded < progress.rendered ? 'rendering' : 'encoding',
+          stage: encoded < rendered ? 'rendering' : 'encoding',
         });
       } : null,
       hardwareAcceleration: 'prefer-hardware',

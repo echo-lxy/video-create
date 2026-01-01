@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Panel, Group, Separator } from 'react-resizable-panels';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
 import EditorArea from './EditorArea';
-import Panel as BottomPanel from './Panel';
+import BottomPanelComponent from './Panel';
 import StatusBar from './StatusBar';
 import { ActivityId } from './ActivityBar';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -153,7 +153,7 @@ export default function VideoEditor() {
           </div>
 
           {/* 侧边栏和主编辑区 */}
-          <PanelGroup direction="horizontal" className="flex-1">
+          <Group orientation="horizontal" className="flex-1">
             {/* 侧边栏（可调整大小） */}
             {showSidebar && (
               <>
@@ -161,20 +161,19 @@ export default function VideoEditor() {
                   defaultSize={getSidebarSize()}
                   minSize={15}
                   maxSize={40}
-                  onResize={(size) => {
-                    const containerWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-                    const pixelWidth = (size / 100) * containerWidth;
-                    setSidebarWidth(pixelWidth);
+                  onResize={(panelSize) => {
+                    // panelSize 是 { asPercentage: number, inPixels: number }
+                    setSidebarWidth(panelSize.inPixels);
                   }}
                 >
                   <Sidebar activeActivity={activeActivity} width={sidebarWidth} />
                 </Panel>
-                <PanelResizeHandle className="w-1 bg-[#1e1e1e] hover:bg-[#007acc] transition-colors cursor-col-resize" />
+                <Separator className="w-1 bg-[#1e1e1e] hover:bg-[#007acc] transition-colors cursor-col-resize" />
               </>
             )}
 
             {/* 主编辑区和底部面板 */}
-            <PanelGroup direction="vertical" className="flex-1">
+            <Group orientation="vertical" className="flex-1">
               <Panel
                 defaultSize={showBottomPanel ? 100 - getBottomPanelSize() : 100}
                 minSize={30}
@@ -189,23 +188,22 @@ export default function VideoEditor() {
               {/* 底部面板（可调整大小） */}
               {showBottomPanel && (
                 <>
-                  <PanelResizeHandle className="h-1 bg-[#1e1e1e] hover:bg-[#007acc] transition-colors cursor-row-resize" />
+                  <Separator className="h-1 bg-[#1e1e1e] hover:bg-[#007acc] transition-colors cursor-row-resize" />
                   <Panel
                     defaultSize={getBottomPanelSize()}
                     minSize={5}
                     maxSize={70}
-                    onResize={(size) => {
-                      const containerHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-                      const pixelHeight = (size / 100) * containerHeight;
-                      setPanelHeight(pixelHeight);
-                    }}
+                  onResize={(panelSize) => {
+                    // panelSize 是 { asPercentage: number, inPixels: number }
+                    setPanelHeight(panelSize.inPixels);
+                  }}
                   >
-                    <BottomPanel height={panelHeight} onHeightChange={setPanelHeight} />
+                    <BottomPanelComponent height={panelHeight} onHeightChange={setPanelHeight} />
                   </Panel>
                 </>
               )}
-            </PanelGroup>
-          </PanelGroup>
+          </Group>
+        </Group>
         </div>
 
         {/* 状态栏 */}
