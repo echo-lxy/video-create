@@ -334,7 +334,41 @@ export default function VideoPreview() {
     } catch (error: any) {
       console.error('导出失败:', error);
       setExportProgress(null);
-      alert(`视频导出失败: ${error.message}`);
+      
+      // 如果是屏幕录制需要用户手势的错误，显示特殊提示
+      if (error.message?.includes('SCREEN_RECORDING_REQUIRES_USER_GESTURE')) {
+        const userMessage = error.message.replace('SCREEN_RECORDING_REQUIRES_USER_GESTURE: ', '');
+        const useScreenRecording = confirm(
+          `${userMessage}\n\n` +
+          `是否现在使用屏幕录制导出视频？\n` +
+          `（点击"确定"后，浏览器会提示您选择要录制的窗口）`
+        );
+        
+        if (useScreenRecording) {
+          // 用户确认后，在当前用户手势上下文中直接调用屏幕录制
+          // 使用 forceScreenRecording 标志，跳过 Remotion 渲染尝试
+          try {
+            setIsExporting(true);
+            await exportVideo({
+              component: stableComponent,
+              durationInFrames,
+              fps,
+              width,
+              height,
+              quality: 'high',
+              codec: 'h264',
+              forceScreenRecording: true, // 强制使用屏幕录制
+            }, playerRef);
+            alert('视频导出成功！');
+          } catch (screenError: any) {
+            alert(`屏幕录制失败: ${screenError.message}`);
+          } finally {
+            setIsExporting(false);
+          }
+        }
+      } else {
+        alert(`视频导出失败: ${error.message}`);
+      }
     } finally {
       setIsExporting(false);
     }

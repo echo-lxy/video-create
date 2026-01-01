@@ -19,6 +19,7 @@ export interface ExportOptions {
   codec?: 'h264' | 'h265' | 'vp8' | 'vp9' | 'av1';
   quality?: 'very-low' | 'low' | 'medium' | 'high' | 'very-high' | number;
   onProgress?: (progress: { renderedFrames: number; encodedFrames: number }) => void;
+  forceScreenRecording?: boolean; // 强制使用屏幕录制（跳过 Remotion 渲染）
 }
 
 /**
@@ -35,6 +36,12 @@ export async function exportVideo(
   playerRef?: React.RefObject<any>
 ): Promise<void> {
   try {
+    // 如果强制使用屏幕录制，直接调用
+    if (options.forceScreenRecording) {
+      console.log('使用屏幕录制导出视频（强制模式）...');
+      return await startScreenRecording(options);
+    }
+
     console.log('开始导出视频（使用 Remotion 客户端渲染）...', {
       durationInFrames: options.durationInFrames,
       fps: options.fps,
@@ -77,7 +84,20 @@ export async function exportVideo(
     // 如果是 shader 错误，也回退到屏幕录制
     if (error.message?.includes('shader') || error.message?.includes('Shader')) {
       console.warn('⚠️ WebGL shader 错误，回退到屏幕录制方案...');
-      return await startScreenRecording(options);
+      try {
+        return await startScreenRecording(options);
+      } catch (screenError: any) {
+        // 如果屏幕录制也需要用户手势，抛出特殊错误
+        if (screenError.message?.includes('SCREEN_RECORDING_REQUIRES_USER_GESTURE')) {
+          throw screenError;
+        }
+        throw screenError;
+      }
+    }
+    
+    // 如果错误信息包含用户手势要求，直接抛出
+    if (error.message?.includes('SCREEN_RECORDING_REQUIRES_USER_GESTURE')) {
+      throw error;
     }
     
     throw new Error(`视频导出失败: ${error.message || '未知错误'}`);
@@ -139,19 +159,38 @@ async function renderWithRemotion(
 
 /**
  * 使用屏幕录制 API 录制视频
+ * 注意：getDisplayMedia 必须在用户手势事件中调用
  */
 async function startScreenRecording(options: ExportOptions): Promise<void> {
   return new Promise(async (resolve, reject) => {
     try {
+      // 检查是否在用户手势上下文中
+      // 如果不在，提示用户需要再次点击
+      // 注意：这是一个启发式检查，不能完全保证，但可以捕获大多数情况
+      
       // 请求屏幕录制权限
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: options.width },
-          height: { ideal: options.height },
-          frameRate: { ideal: options.fps },
-        },
-        audio: false,
-      });
+      // 必须在用户手势事件中调用，否则会抛出错误
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: options.width },
+            height: { ideal: options.height },
+            frameRate: { ideal: options.fps },
+          },
+          audio: false,
+        });
+      } catch (gestureError: any) {
+        // 如果是因为不在用户手势上下文中，抛出特殊错误
+        if (gestureError.message?.includes('user gesture') || 
+            gestureError.message?.includes('getDisplayMedia must be called')) {
+          throw new Error(
+            'SCREEN_RECORDING_REQUIRES_USER_GESTURE: ' +
+            '屏幕录制需要在用户点击事件中调用。请再次点击"导出视频"按钮，然后选择"使用屏幕录制"选项。'
+          );
+        }
+        throw gestureError;
+      }
 
       // 创建 MediaRecorder
       const mimeType = getSupportedMimeType();
