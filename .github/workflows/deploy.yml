@@ -36,6 +36,8 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+          # 确保使用生产环境配置
+          NEXT_PUBLIC_BASE_PATH: /video-create
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
+const isProduction = process.env.NODE_ENV === 'production';
+const basePath = isProduction ? '/video-create' : '';
+
 const nextConfig = {
   output: 'export',
+  basePath: basePath,
+  assetPrefix: basePath,
   images: {
     unoptimized: true,
   },
@@ -10,6 +15,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  trailingSlash: true,
   webpack: (config, { isServer }) => {
     // 支持 WASM
     config.experiments = {
