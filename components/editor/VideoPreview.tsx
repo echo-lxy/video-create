@@ -12,6 +12,7 @@ import VideoDebugControls from './VideoDebugControls';
 import { exportVideo } from '@/lib/video/video-exporter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ErrorBoundary } from './ErrorBoundary';
 
 export default function VideoPreview() {
   const { code, videoConfig, setVideoConfig } = useCodeStore();
@@ -19,6 +20,7 @@ export default function VideoPreview() {
     useEditorStore();
   const [component, setComponent] = useState<React.ComponentType | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
   const playerRef = useRef<PlayerRef>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ renderedFrames: number; encodedFrames: number } | null>(null);
@@ -279,9 +281,12 @@ export default function VideoPreview() {
         // 直接设置组件，但使用稳定的引用
         const StableComponent = ComponentClass;
         setComponent(() => StableComponent);
+        setRenderError(null); // 清除之前的渲染错误
       } catch (error: any) {
         console.error('❌ Component extraction failed:', error);
         setCompilationError(error.message || 'Unknown error');
+        setComponent(null); // 清除组件，防止渲染错误
+        setRenderError(null);
       } finally {
         setCompiling(false);
       }
@@ -300,9 +305,25 @@ export default function VideoPreview() {
     return () => debouncedCompile.cancel();
   }, [code, debouncedCompile]);
 
+  // 监听强制重新编译事件
+  useEffect(() => {
+    const handleForceRecompile = () => {
+      console.log('Force recompiling code...');
+      setRenderError(null);
+      setComponent(null);
+      // 触发重新编译
+      debouncedCompile(code);
+    };
+
+    window.addEventListener('force-recompile', handleForceRecompile);
+    return () => {
+      window.removeEventListener('force-recompile', handleForceRecompile);
+    };
+  }, [code, debouncedCompile]);
+
   if (validationError) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-950">
+      <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
         <div className="text-center max-w-2xl px-4">
           <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-red-300 mb-2">
@@ -318,7 +339,7 @@ export default function VideoPreview() {
 
   if (compilationError) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-950">
+      <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
         <div className="text-center max-w-2xl px-4">
           <AlertCircle className="w-16 h-16 text-orange-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-orange-300 mb-2">
@@ -442,22 +463,22 @@ export default function VideoPreview() {
 
   if (!component) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-950">
+      <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-500" />
-          <p className="text-gray-400">Compiling and validating code...</p>
+          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-[#007acc]" />
+          <p className="text-[#cccccc]">Compiling and validating code...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-950">
-      <div className="p-4 border-b border-gray-800">
+    <div className="h-full flex flex-col bg-[#1e1e1e]">
+      <div className="p-4 border-b border-[#3e3e42]">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-medium text-gray-300">Video Preview</h3>
+              <h3 className="text-sm font-medium text-[#cccccc]">Video Preview</h3>
               <Button
                 size="sm"
                 variant="ghost"
@@ -468,28 +489,28 @@ export default function VideoPreview() {
               </Button>
             </div>
             {component && (
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-[#969696] mt-1">
                 Component: {component.displayName || component.name || 'Unknown'}
               </p>
             )}
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-[#969696] mt-1">
               时长: {(durationInFrames / fps).toFixed(1)}秒 ({durationInFrames} 帧 @ {fps} fps) | 分辨率: {width}×{height}
             </p>
             {isExporting && exportProgress && (
               <div className="mt-2">
                 <div className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
-                  <span className="text-xs text-blue-400">
+                  <Loader2 className="w-3 h-3 animate-spin text-[#007acc]" />
+                  <span className="text-xs text-[#007acc]">
                     导出中: {Math.round((exportProgress.encodedFrames / durationInFrames) * 100)}%
                   </span>
                 </div>
-                <div className="mt-1 w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                <div className="mt-1 w-full bg-[#3c3c3c] rounded-full h-1.5 overflow-hidden">
                   <div
-                    className="bg-blue-500 h-full transition-all duration-300"
+                    className="bg-[#007acc] h-full transition-all duration-300"
                     style={{ width: `${(exportProgress.encodedFrames / durationInFrames) * 100}%` }}
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-[#969696] mt-1">
                   已渲染: {exportProgress.renderedFrames}/{durationInFrames} 帧 | 
                   已编码: {exportProgress.encodedFrames}/{durationInFrames} 帧
                 </p>
@@ -500,11 +521,11 @@ export default function VideoPreview() {
         
         {/* 视频设置面板 */}
         {showVideoSettings && (
-          <div className="mt-4 p-4 bg-gray-900 rounded-lg border border-gray-700">
-            <h4 className="text-xs font-medium text-gray-300 mb-3">视频设置</h4>
+          <div className="mt-4 p-4 bg-[#252526] rounded-lg border border-[#3e3e42]">
+            <h4 className="text-xs font-medium text-[#cccccc] mb-3">视频设置</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">时长（帧）</label>
+                <label className="text-xs text-[#969696] mb-1 block">时长（帧）</label>
                 <Input
                   type="number"
                   value={tempVideoConfig.durationInFrames}
@@ -515,12 +536,12 @@ export default function VideoPreview() {
                   className="h-8 text-xs"
                   min={1}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-[#969696] mt-1">
                   {(tempVideoConfig.durationInFrames / tempVideoConfig.fps).toFixed(1)} 秒
                 </p>
               </div>
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">帧率 (fps)</label>
+                <label className="text-xs text-[#969696] mb-1 block">帧率 (fps)</label>
                 <Input
                   type="number"
                   value={tempVideoConfig.fps}
@@ -534,7 +555,7 @@ export default function VideoPreview() {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">宽度 (px)</label>
+                <label className="text-xs text-[#969696] mb-1 block">宽度 (px)</label>
                 <Input
                   type="number"
                   value={tempVideoConfig.width}
@@ -547,7 +568,7 @@ export default function VideoPreview() {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">高度 (px)</label>
+                <label className="text-xs text-[#969696] mb-1 block">高度 (px)</label>
                 <Input
                   type="number"
                   value={tempVideoConfig.height}
@@ -586,41 +607,78 @@ export default function VideoPreview() {
       <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
         <div className="bg-black rounded-lg overflow-hidden shadow-2xl w-full max-w-4xl">
           {stableComponent ? (
-            <div className="w-full" style={{ minHeight: '400px', position: 'relative' }}>
-              <Player
-                ref={playerRef}
-                component={stableComponent}
-                durationInFrames={durationInFrames}
-                compositionWidth={width}
-                compositionHeight={height}
-                fps={fps}
-                controls={true}
-                loop
-                clickToPlay={false}
-                doubleClickToFullscreen
-                acknowledgeRemotionLicense={true}
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  height: 'auto',
-                  minHeight: '400px',
-                }}
-              />
-              {/* 调试信息覆盖层 */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded z-10">
-                  <div>Component: {component?.displayName || component?.name || 'Unknown'}</div>
-                  <div>Frame: {playerRef.current?.getCurrentFrame?.()?.toFixed(0) || 'N/A'}</div>
-                  <div>Playing: {playerRef.current?.isPlaying?.() ? 'Yes' : 'No'}</div>
+            <ErrorBoundary
+              onError={(error, errorInfo) => {
+                console.error('Component render error:', error, errorInfo);
+                setRenderError(error.message || 'Component render failed');
+                setComponent(null); // 清除有问题的组件
+              }}
+              fallback={
+                <div className="w-full h-96 flex items-center justify-center text-[#969696]">
+                  <div className="text-center max-w-md px-4">
+                    <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-red-300 mb-2">
+                      组件渲染错误
+                    </h3>
+                    <p className="text-sm text-[#cccccc] mb-4">
+                      您的代码在渲染时发生了错误。请检查代码并修复问题。
+                    </p>
+                    {renderError && (
+                      <pre className="text-xs text-red-400 bg-red-900/30 p-3 rounded overflow-auto text-left max-h-32 mb-4">
+                        {renderError}
+                      </pre>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setRenderError(null);
+                        // 触发重新编译
+                        const event = new CustomEvent('force-recompile');
+                        window.dispatchEvent(event);
+                      }}
+                    >
+                      清除错误并重试
+                    </Button>
+                  </div>
                 </div>
-              )}
-            </div>
+              }
+            >
+              <div className="w-full" style={{ minHeight: '400px', position: 'relative' }}>
+                <Player
+                  ref={playerRef}
+                  component={stableComponent}
+                  durationInFrames={durationInFrames}
+                  compositionWidth={width}
+                  compositionHeight={height}
+                  fps={fps}
+                  controls={true}
+                  loop
+                  clickToPlay={false}
+                  doubleClickToFullscreen
+                  acknowledgeRemotionLicense={true}
+                  style={{
+                    width: '100%',
+                    maxWidth: '100%',
+                    height: 'auto',
+                    minHeight: '400px',
+                  }}
+                />
+                {/* 调试信息覆盖层 */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded z-10">
+                    <div>Component: {component?.displayName || component?.name || 'Unknown'}</div>
+                    <div>Frame: {playerRef.current?.getCurrentFrame?.()?.toFixed(0) || 'N/A'}</div>
+                    <div>Playing: {playerRef.current?.isPlaying?.() ? 'Yes' : 'No'}</div>
+                  </div>
+                )}
+              </div>
+            </ErrorBoundary>
           ) : (
-            <div className="w-full h-96 flex items-center justify-center text-gray-400">
+            <div className="w-full h-96 flex items-center justify-center text-[#969696]">
               <div className="text-center">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
                 <p>No component to preview</p>
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-[#969696] mt-2">
                   {useEditorStore.getState().isCompiling ? 'Compiling...' : 'Waiting for code...'}
                 </p>
               </div>

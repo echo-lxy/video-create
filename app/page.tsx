@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
+import { ErrorBoundary } from '@/components/editor/ErrorBoundary';
 
 // 调试模式：在 URL 中添加 ?debug=1 来显示加载状态
 const isDebug = typeof window !== 'undefined' && 
@@ -66,48 +67,46 @@ function LoadingComponent() {
   );
 }
 
-// 错误边界组件
-function ErrorBoundary({ children }: { children: React.ReactNode }) {
-  const [hasError, setHasError] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
+// 全局错误处理（用于捕获非React错误）
+function GlobalErrorHandler({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
+      // 过滤掉一些已知的可以忽略的错误
+      const errorMessage = event.error?.message || event.message || '';
+      if (
+        errorMessage.includes('BarBarToken') ||
+        errorMessage.includes('monaco') ||
+        errorMessage.includes('chunk') ||
+        errorMessage.includes('Loading')
+      ) {
+        console.warn('Ignored error:', errorMessage);
+        return;
+      }
       console.error('Global error:', event.error);
-      setError(event.error);
-      setHasError(true);
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const errorMessage = event.reason?.message || String(event.reason) || '';
+      if (
+        errorMessage.includes('BarBarToken') ||
+        errorMessage.includes('monaco') ||
+        errorMessage.includes('chunk') ||
+        errorMessage.includes('Loading')
+      ) {
+        console.warn('Ignored rejection:', errorMessage);
+        return;
+      }
+      console.error('Unhandled promise rejection:', event.reason);
     };
 
     window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
   }, []);
-
-  if (hasError) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center bg-gray-950">
-        <div className="text-center max-w-2xl px-4">
-          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-red-300 mb-2">
-            Failed to Load Editor
-          </h2>
-          <p className="text-gray-400 mb-4">
-            There was an error loading the video editor. Please try refreshing the page.
-          </p>
-          {error && (
-            <pre className="text-xs text-gray-500 bg-gray-900 p-4 rounded overflow-auto text-left max-h-64">
-              {error.message}
-            </pre>
-          )}
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Refresh Page
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return <>{children}</>;
 }
@@ -134,11 +133,33 @@ export default function Home() {
 
   return (
     <main className="h-screen w-screen overflow-hidden">
-      <ErrorBoundary>
-        <Suspense fallback={<LoadingComponent />}>
-          <VideoEditor />
-        </Suspense>
-      </ErrorBoundary>
+      <GlobalErrorHandler>
+        <ErrorBoundary
+          fallback={
+            <div className="h-screen w-screen flex items-center justify-center bg-[#1e1e1e]">
+              <div className="text-center max-w-2xl px-4">
+                <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold text-red-300 mb-2">
+                  应用加载失败
+                </h2>
+                <p className="text-[#cccccc] mb-4">
+                  编辑器加载时发生错误。请刷新页面重试。
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-4 px-4 py-2 bg-[#007acc] text-white rounded hover:bg-[#005a9e]"
+                >
+                  刷新页面
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <Suspense fallback={<LoadingComponent />}>
+            <VideoEditor />
+          </Suspense>
+        </ErrorBoundary>
+      </GlobalErrorHandler>
     </main>
   );
 }

@@ -98,10 +98,10 @@ export default function PromptTemplateEditor() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-950">
-      <div className="p-4 border-b border-gray-800">
+    <div className="h-full flex flex-col bg-[#252526]">
+      <div className="p-4 border-b border-[#3e3e42]">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-gray-300">提示词模板</h3>
+          <h3 className="text-sm font-medium text-[#cccccc]">提示词模板</h3>
           <Button
             size="sm"
             variant="outline"
@@ -116,14 +116,14 @@ export default function PromptTemplateEditor() {
           </Button>
         </div>
         {currentTemplate && (
-          <p className="text-xs text-gray-500">{currentTemplate.name}</p>
+          <p className="text-xs text-[#969696]">{currentTemplate.name}</p>
         )}
       </div>
 
       {/* 模板列表 */}
       <div className="flex-1 overflow-auto p-4">
         {templates.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-[#969696] py-8">
             <p className="text-sm">暂无模板</p>
             <p className="text-xs mt-1">创建模板后可以引用资源并发送给 AI</p>
           </div>
@@ -132,10 +132,10 @@ export default function PromptTemplateEditor() {
             {templates.map((template) => (
               <div
                 key={template.id}
-                className={`bg-gray-900 rounded-lg p-3 border cursor-pointer transition-colors ${
+                className={`bg-[#1e1e1e] rounded-lg p-3 border cursor-pointer transition-colors ${
                   currentTemplateId === template.id
-                    ? 'border-blue-500'
-                    : 'border-gray-800 hover:border-gray-700'
+                    ? 'border-[#007acc]'
+                    : 'border-[#3e3e42] hover:border-[#007acc]'
                 }`}
                 onClick={() => {
                   setCurrentTemplate(template.id);
@@ -144,8 +144,8 @@ export default function PromptTemplateEditor() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-gray-400" />
-                    <p className="text-sm font-medium text-gray-300">{template.name}</p>
+                    <FileText className="w-4 h-4 text-[#969696]" />
+                    <p className="text-sm font-medium text-[#cccccc]">{template.name}</p>
                   </div>
                   <Button
                     size="sm"
@@ -156,7 +156,7 @@ export default function PromptTemplateEditor() {
                         deleteTemplate(template.id);
                       }
                     }}
-                    className="h-6 w-6 p-0 text-gray-400 hover:text-red-400"
+                    className="h-6 w-6 p-0 text-[#969696] hover:text-red-400"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -177,7 +177,7 @@ export default function PromptTemplateEditor() {
           </DialogHeader>
           <div className="p-6 space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-300 mb-2 block">
+              <label className="text-sm font-medium text-[#cccccc] mb-2 block">
                 模板名称
               </label>
               <Input
@@ -189,7 +189,7 @@ export default function PromptTemplateEditor() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-300">模板内容</label>
+                <label className="text-sm font-medium text-[#cccccc]">模板内容</label>
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
@@ -202,16 +202,16 @@ export default function PromptTemplateEditor() {
                 </div>
               </div>
               {showAssetPicker && (
-                <div className="mb-2 p-3 bg-gray-800 rounded border border-gray-700 max-h-40 overflow-auto">
+                <div className="mb-2 p-3 bg-[#3c3c3c] rounded border border-[#3e3e42] max-h-40 overflow-auto">
                   {assets.length === 0 ? (
-                    <p className="text-xs text-gray-500">暂无资源，请先上传</p>
+                    <p className="text-xs text-[#969696]">暂无资源，请先上传</p>
                   ) : (
                     <div className="space-y-1">
                       {assets.map((asset) => (
                         <button
                           key={asset.id}
                           onClick={() => handleInsertAsset(asset.id, asset.name)}
-                          className="w-full text-left px-2 py-1 text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
+                          className="w-full text-left px-2 py-1 text-xs text-[#cccccc] hover:bg-[#37373d] rounded flex items-center gap-2"
                         >
                           {getAssetIcon(asset.type)}
                           {asset.name}
@@ -225,9 +225,9 @@ export default function PromptTemplateEditor() {
                 value={templateContent}
                 onChange={(e) => setTemplateContent(e.target.value)}
                 placeholder="输入提示词内容，可以使用 {{asset:assetId:assetName}} 引用资源"
-                className="w-full h-64 p-3 bg-gray-800 border border-gray-700 rounded text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-64 p-3 bg-[#3c3c3c] border border-[#3e3e42] rounded text-sm text-[#cccccc] placeholder-[#969696] focus:outline-none focus:ring-2 focus:ring-[#007acc]"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-[#969696] mt-1">
                 提示：使用 {'{{asset:assetId:assetName}}'} 格式引用资源
               </p>
             </div>

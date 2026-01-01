@@ -68,30 +68,30 @@ export default function AssetManager() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-950">
-      <div className="p-4 border-b border-gray-800">
-        <h3 className="text-sm font-medium text-gray-300 mb-2">资源管理</h3>
-        <div className="text-xs text-gray-500">
+    <div className="h-full flex flex-col bg-[#252526]">
+      <div className="p-4 border-b border-[#3e3e42]">
+        <h3 className="text-sm font-medium text-[#cccccc] mb-2">资源管理</h3>
+        <div className="text-xs text-[#969696]">
           总计: {stats.total} 个文件 | {formatBytes(stats.totalSize)}
         </div>
       </div>
 
       {/* 上传区域 */}
-      <div className="p-4 border-b border-gray-800">
+      <div className="p-4 border-b border-[#3e3e42]">
         <div
           {...getRootProps()}
           className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
             isDragActive
-              ? 'border-blue-500 bg-blue-500/10'
-              : 'border-gray-700 hover:border-gray-600'
+              ? 'border-[#007acc] bg-[#007acc]/10'
+              : 'border-[#3e3e42] hover:border-[#007acc]'
           }`}
         >
           <input {...getInputProps()} />
-          <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-          <p className="text-sm text-gray-400">
+          <Upload className="w-8 h-8 mx-auto mb-2 text-[#969696]" />
+          <p className="text-sm text-[#cccccc]">
             {isDragActive ? '松开以上传文件' : '拖拽文件到此处或点击上传'}
           </p>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-[#969696] mt-1">
             支持图片、音频、视频文件
           </p>
         </div>
@@ -100,7 +100,7 @@ export default function AssetManager() {
       {/* 资源列表 */}
       <div className="flex-1 overflow-auto p-4">
         {assets.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-[#969696] py-8">
             <p className="text-sm">暂无资源</p>
             <p className="text-xs mt-1">上传文件后，可以在代码中使用 staticFile() 引用</p>
           </div>
@@ -109,7 +109,7 @@ export default function AssetManager() {
             {assets.map((asset) => (
               <div
                 key={asset.id}
-                className="bg-gray-900 rounded-lg p-3 border border-gray-800 hover:border-gray-700 transition-colors"
+                className="bg-[#1e1e1e] rounded-lg p-3 border border-[#3e3e42] hover:border-[#007acc] transition-colors"
               >
                 <div className="flex items-start gap-3">
                   {/* 预览 */}
@@ -121,7 +121,7 @@ export default function AssetManager() {
                         className="w-16 h-16 object-cover rounded"
                       />
                     ) : (
-                      <div className="w-16 h-16 bg-gray-800 rounded flex items-center justify-center">
+                      <div className="w-16 h-16 bg-[#3c3c3c] rounded flex items-center justify-center">
                         {getAssetIcon(asset.type)}
                       </div>
                     )}
@@ -131,11 +131,11 @@ export default function AssetManager() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       {getAssetIcon(asset.type)}
-                      <p className="text-sm font-medium text-gray-300 truncate">
+                      <p className="text-sm font-medium text-[#cccccc] truncate">
                         {asset.name}
                       </p>
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-[#969696]">
                       {formatBytes(asset.size)} | {asset.type}
                     </p>
                     <div className="mt-2 flex items-center gap-2">
@@ -157,7 +157,7 @@ export default function AssetManager() {
                           </>
                         )}
                       </Button>
-                      <code className="text-xs bg-gray-800 px-2 py-1 rounded">
+                      <code className="text-xs bg-[#3c3c3c] px-2 py-1 rounded text-[#cccccc]">
                         staticFile('{asset.id}')
                       </code>
                     </div>
@@ -168,7 +168,7 @@ export default function AssetManager() {
                     size="sm"
                     variant="ghost"
                     onClick={() => handleDelete(asset.id)}
-                    className="h-6 w-6 p-0 text-gray-400 hover:text-red-400"
+                    className="h-6 w-6 p-0 text-[#969696] hover:text-red-400"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

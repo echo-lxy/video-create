@@ -1,78 +1,76 @@
 'use client';
 
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect } from 'react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { useEditorStore } from '@/lib/store/editor-store';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Code2, MessageSquare, Play, AlertCircle, Loader2, FolderOpen, FileText } from 'lucide-react';
-
-// 懒加载组件，按需加载以加快初始加载
-const AIChatPanel = lazy(() => import('@/components/ai/AIChatPanel').then(m => ({ default: m.default })));
-const CodeEditor = lazy(() => import('./CodeEditor').then(m => ({ default: m.default })));
-const VideoPreview = lazy(() => import('./VideoPreview').then(m => ({ default: m.default })));
-const AssetManager = lazy(() => import('@/components/assets/AssetManager').then(m => ({ default: m.default })));
-const PromptTemplateEditor = lazy(() => import('@/components/prompt/PromptTemplateEditor').then(m => ({ default: m.default })));
-
-// 加载占位符
-const LoadingPlaceholder = ({ text }: { text: string }) => (
-  <div className="h-full flex items-center justify-center bg-gray-950">
-    <div className="text-center text-gray-400 text-sm">
-      <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-      <p>{text}</p>
-    </div>
-  </div>
-);
+import ActivityBar from './ActivityBar';
+import Sidebar from './Sidebar';
+import EditorArea from './EditorArea';
+import Panel as BottomPanel from './Panel';
+import StatusBar from './StatusBar';
+import { ActivityId } from './ActivityBar';
+import { ErrorBoundary } from './ErrorBoundary';
 
 export default function VideoEditor() {
-  const { showAIPanel, showCodeEditor, toggleAIPanel, toggleCodeEditor } =
-    useEditorStore();
+  const {
+    activeActivity,
+    sidebarWidth,
+    panelHeight,
+    activeTabs,
+    setActiveActivity,
+    setSidebarWidth,
+    setPanelHeight,
+    setActiveTabs,
+  } = useEditorStore();
+
   const [mounted, setMounted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showAssets, setShowAssets] = useState(false);
-  const [showPromptTemplate, setShowPromptTemplate] = useState(false);
 
   useEffect(() => {
-    // 延迟设置 mounted，给组件一些时间初始化
     const timer = setTimeout(() => {
       setMounted(true);
     }, 100);
-    
-    // 捕获全局错误
+
     const handleError = (event: ErrorEvent) => {
       console.error('VideoEditor error:', event.error);
       const errorMessage = event.error?.message || event.message || 'Unknown error';
-      
-      // 过滤掉一些已知的 Monaco Editor 内部错误
-      if (errorMessage.includes('BarBarToken') || 
-          errorMessage.includes('monaco') ||
-          errorMessage.includes('Monaco') ||
-          errorMessage.includes('chunk') ||
-          errorMessage.includes('Loading')) {
+
+      if (
+        errorMessage.includes('BarBarToken') ||
+        errorMessage.includes('monaco') ||
+        errorMessage.includes('Monaco') ||
+        errorMessage.includes('chunk') ||
+        errorMessage.includes('Loading')
+      ) {
         console.warn('Component loading error (may be safe to ignore):', errorMessage);
-        return; // 不显示这些错误，它们通常是加载相关的
+        return;
       }
-      
+
       setError(errorMessage);
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       console.error('Unhandled promise rejection:', event.reason);
       const errorMessage = event.reason?.message || String(event.reason) || 'Unknown error';
-      
-      // 过滤加载相关错误
-      if (errorMessage.includes('BarBarToken') || 
-          errorMessage.includes('monaco') ||
-          errorMessage.includes('chunk') ||
-          errorMessage.includes('Loading')) {
+
+      if (
+        errorMessage.includes('BarBarToken') ||
+        errorMessage.includes('monaco') ||
+        errorMessage.includes('chunk') ||
+        errorMessage.includes('Loading')
+      ) {
         console.warn('Component loading rejection (may be safe to ignore):', errorMessage);
         return;
       }
-      
+
       setError(errorMessage);
     };
 
     window.addEventListener('error', handleError);
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
-    
+
     return () => {
       clearTimeout(timer);
       window.removeEventListener('error', handleError);
@@ -80,119 +78,140 @@ export default function VideoEditor() {
     };
   }, []);
 
+  const handleActivityChange = (activity: ActivityId) => {
+    // 如果点击的是当前活动，则关闭侧边栏（仅对侧边栏活动）
+    if (activeActivity === activity && ['ai', 'assets', 'prompt'].includes(activity)) {
+      setActiveActivity(null);
+      return;
+    }
+    
+    // 设置新的活动
+    setActiveActivity(activity);
+    
+    // 如果选择的是编辑器或预览，自动添加到标签页并激活
+    if (activity === 'editor') {
+      if (!activeTabs.includes('editor')) {
+        setActiveTabs([...activeTabs, 'editor']);
+      }
+      // 注意：EditorArea会通过activeTabs的变化自动切换到editor标签
+    } else if (activity === 'preview') {
+      if (!activeTabs.includes('preview')) {
+        setActiveTabs([...activeTabs, 'preview']);
+      }
+      // 注意：EditorArea会通过activeTabs的变化自动切换到preview标签
+    }
+  };
+
   if (!mounted) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-950">
-        <div className="text-center text-gray-400">Initializing...</div>
+      <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
+        <div className="text-center text-[#cccccc]">Initializing...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-950">
+      <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
         <div className="text-center max-w-md px-4">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-red-300 mb-2">Error</h3>
-          <p className="text-sm text-gray-400 mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>
-            Reload Page
-          </Button>
+          <p className="text-sm text-[#cccccc] mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>Reload Page</Button>
         </div>
       </div>
     );
   }
 
+  const showSidebar = activeActivity && ['ai', 'assets', 'prompt'].includes(activeActivity);
+  const showBottomPanel = panelHeight > 0;
+
+  // 计算面板尺寸百分比
+  const getSidebarSize = () => {
+    if (!showSidebar) return 0;
+    const containerWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+    return Math.min(Math.max((sidebarWidth / containerWidth) * 100, 15), 40);
+  };
+
+  const getBottomPanelSize = () => {
+    if (!showBottomPanel) return 0;
+    const containerHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+    return Math.min(Math.max((panelHeight / containerHeight) * 100, 5), 70);
+  };
+
   return (
-    <div className="h-full flex flex-col bg-gray-950">
-      {/* Top Toolbar */}
-      <header className="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
-          <Play className="w-6 h-6 text-blue-500" />
-          <h1 className="text-lg font-bold text-gray-100">
-            AI Video Code Generator
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={showAIPanel ? 'default' : 'outline'}
-            onClick={toggleAIPanel}
-          >
-            <MessageSquare className="w-4 h-4 mr-2" />
-            AI Chat
-          </Button>
-          <Button
-            size="sm"
-            variant={showCodeEditor ? 'default' : 'outline'}
-            onClick={toggleCodeEditor}
-          >
-            <Code2 className="w-4 h-4 mr-2" />
-            Code Editor
-          </Button>
-          <Button
-            size="sm"
-            variant={showAssets ? 'default' : 'outline'}
-            onClick={() => setShowAssets(!showAssets)}
-          >
-            <FolderOpen className="w-4 h-4 mr-2" />
-            资源管理
-          </Button>
-          <Button
-            size="sm"
-            variant={showPromptTemplate ? 'default' : 'outline'}
-            onClick={() => setShowPromptTemplate(!showPromptTemplate)}
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            提示词模板
-          </Button>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: AI Chat Panel / Assets / Prompt Template */}
-        <div className="flex">
-          {showAIPanel && (
-            <div className="w-96 border-r border-gray-800 flex-shrink-0">
-              <Suspense fallback={<LoadingPlaceholder text="Loading AI Panel..." />}>
-                <AIChatPanel />
-              </Suspense>
-            </div>
-          )}
-          {showAssets && (
-            <div className="w-80 border-r border-gray-800 flex-shrink-0">
-              <Suspense fallback={<LoadingPlaceholder text="Loading Assets..." />}>
-                <AssetManager />
-              </Suspense>
-            </div>
-          )}
-          {showPromptTemplate && (
-            <div className="w-80 border-r border-gray-800 flex-shrink-0">
-              <Suspense fallback={<LoadingPlaceholder text="Loading Prompt Template..." />}>
-                <PromptTemplateEditor />
-              </Suspense>
-            </div>
-          )}
-        </div>
-
-        {/* Center: Code Editor or Preview */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {showCodeEditor && (
-            <div className="h-1/2 border-b border-gray-800">
-              <Suspense fallback={<LoadingPlaceholder text="Loading Code Editor..." />}>
-                <CodeEditor />
-              </Suspense>
-            </div>
-          )}
-          <div className={showCodeEditor ? 'h-1/2' : 'h-full'}>
-            <Suspense fallback={<LoadingPlaceholder text="Loading Preview..." />}>
-              <VideoPreview />
-            </Suspense>
+    <ErrorBoundary>
+      <div className="h-full flex flex-col bg-[#1e1e1e] overflow-hidden">
+        {/* 主布局：活动栏 + 侧边栏 + 编辑区 + 底部面板 */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* 活动栏 */}
+          <div className="flex-shrink-0">
+            <ActivityBar
+              activeActivity={activeActivity}
+              onActivityChange={handleActivityChange}
+            />
           </div>
+
+          {/* 侧边栏和主编辑区 */}
+          <PanelGroup direction="horizontal" className="flex-1">
+            {/* 侧边栏（可调整大小） */}
+            {showSidebar && (
+              <>
+                <Panel
+                  defaultSize={getSidebarSize()}
+                  minSize={15}
+                  maxSize={40}
+                  onResize={(size) => {
+                    const containerWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+                    const pixelWidth = (size / 100) * containerWidth;
+                    setSidebarWidth(pixelWidth);
+                  }}
+                >
+                  <Sidebar activeActivity={activeActivity} width={sidebarWidth} />
+                </Panel>
+                <PanelResizeHandle className="w-1 bg-[#1e1e1e] hover:bg-[#007acc] transition-colors cursor-col-resize" />
+              </>
+            )}
+
+            {/* 主编辑区和底部面板 */}
+            <PanelGroup direction="vertical" className="flex-1">
+              <Panel
+                defaultSize={showBottomPanel ? 100 - getBottomPanelSize() : 100}
+                minSize={30}
+              >
+                <EditorArea
+                  activeTabs={activeTabs}
+                  onTabChange={setActiveTabs}
+                  defaultActiveTab={activeActivity === 'editor' ? 'editor' : activeActivity === 'preview' ? 'preview' : undefined}
+                />
+              </Panel>
+
+              {/* 底部面板（可调整大小） */}
+              {showBottomPanel && (
+                <>
+                  <PanelResizeHandle className="h-1 bg-[#1e1e1e] hover:bg-[#007acc] transition-colors cursor-row-resize" />
+                  <Panel
+                    defaultSize={getBottomPanelSize()}
+                    minSize={5}
+                    maxSize={70}
+                    onResize={(size) => {
+                      const containerHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+                      const pixelHeight = (size / 100) * containerHeight;
+                      setPanelHeight(pixelHeight);
+                    }}
+                  >
+                    <BottomPanel height={panelHeight} onHeightChange={setPanelHeight} />
+                  </Panel>
+                </>
+              )}
+            </PanelGroup>
+          </PanelGroup>
         </div>
+
+        {/* 状态栏 */}
+        <StatusBar />
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 

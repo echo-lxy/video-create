@@ -125,11 +125,11 @@ export default function CodeEditor() {
         onMount={handleEditorDidMount}
         theme="vs-dark"
         loading={
-          <div className="h-full flex items-center justify-center bg-[#1e1e1e] text-gray-400">
+          <div className="h-full flex items-center justify-center bg-[#1e1e1e] text-[#cccccc]">
             <div className="text-center">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-[#007acc]" />
               <p className="text-xs">Loading Monaco Editor...</p>
-              <p className="text-xs text-gray-500 mt-1">~2-3MB, may take 10-20s</p>
+              <p className="text-xs text-[#969696] mt-1">~2-3MB, may take 10-20s</p>
             </div>
           </div>
         }
