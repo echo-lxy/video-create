@@ -302,6 +302,8 @@ export default function VideoPreview() {
         componentType: typeof component,
         componentName: component.displayName || component.name || 'Unknown',
         hasComponent: !!component,
+        stableComponent: !!stableComponent,
+        playerRef: !!playerRef.current,
       });
     } else {
       console.log('⏳ VideoPreview: Waiting for component...', {
@@ -311,7 +313,17 @@ export default function VideoPreview() {
         codeLength: code.length,
       });
     }
-  }, [component, code, validationError]);
+  }, [component, stableComponent, code, validationError]);
+
+  // 监听 Player 加载状态
+  useEffect(() => {
+    if (stableComponent && playerRef.current) {
+      console.log('✅ Player ref is ready:', {
+        hasRef: !!playerRef.current,
+        refType: typeof playerRef.current,
+      });
+    }
+  }, [stableComponent, playerRef]);
 
   if (!component) {
     return (
@@ -341,7 +353,7 @@ export default function VideoPreview() {
       <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
         <div className="bg-black rounded-lg overflow-hidden shadow-2xl w-full max-w-4xl">
           {stableComponent ? (
-            <div className="w-full">
+            <div className="w-full" style={{ minHeight: '400px', position: 'relative' }}>
               <Player
                 ref={playerRef}
                 component={stableComponent}
@@ -349,13 +361,26 @@ export default function VideoPreview() {
                 compositionWidth={width}
                 compositionHeight={height}
                 fps={fps}
-                controls={false}
+                controls={true}
+                loop
+                clickToPlay={false}
+                doubleClickToFullscreen
                 acknowledgeRemotionLicense={true}
                 style={{
                   width: '100%',
+                  maxWidth: '100%',
                   height: 'auto',
+                  minHeight: '400px',
                 }}
               />
+              {/* 调试信息覆盖层 */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded z-10">
+                  <div>Component: {component?.displayName || component?.name || 'Unknown'}</div>
+                  <div>Frame: {playerRef.current?.getCurrentFrame?.()?.toFixed(0) || 'N/A'}</div>
+                  <div>Playing: {playerRef.current?.isPlaying?.() ? 'Yes' : 'No'}</div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="w-full h-96 flex items-center justify-center text-gray-400">
