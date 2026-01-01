@@ -317,9 +317,9 @@ export default function VideoPreview() {
         setRenderError(null); // 清除之前的渲染错误
       } catch (error: any) {
         console.error('❌ Component extraction failed:', error);
+        // 记录错误，但保留上一次成功的组件，避免预览消失
         setCompilationError(error.message || 'Unknown error');
-        setComponent(null); // 清除组件，防止渲染错误
-        setRenderError(null);
+        setRenderError(error.message || 'Unknown error');
       } finally {
         setCompiling(false);
       }
@@ -353,38 +353,6 @@ export default function VideoPreview() {
       window.removeEventListener('force-recompile', handleForceRecompile);
     };
   }, [code, debouncedCompile]);
-
-  if (validationError) {
-    return (
-      <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
-        <div className="text-center max-w-2xl px-4">
-          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-red-300 mb-2">
-            Security Validation Failed
-          </h3>
-          <pre className="text-sm text-red-400 bg-red-900/30 p-4 rounded-lg overflow-auto text-left">
-            {validationError}
-          </pre>
-        </div>
-      </div>
-    );
-  }
-
-  if (compilationError) {
-    return (
-      <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
-        <div className="text-center max-w-2xl px-4">
-          <AlertCircle className="w-16 h-16 text-orange-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-orange-300 mb-2">
-            Compilation Error
-          </h3>
-          <pre className="text-sm text-orange-400 bg-orange-900/30 p-4 rounded-lg overflow-auto text-left">
-            {compilationError}
-          </pre>
-        </div>
-      </div>
-    );
-  }
 
   // 使用 useMemo 确保组件引用稳定，避免 React Hooks 顺序问题
   // 创建一个安全的组件包装器，确保错误不会传播
@@ -510,6 +478,50 @@ export default function VideoPreview() {
 
   return (
     <div className="h-full flex flex-col bg-[#1e1e1e]">
+      {/* 错误提示（非阻塞，保留编辑器与预览） */}
+      {(validationError || compilationError || renderError) && (
+        <div className="px-4 pt-3">
+          {validationError && (
+            <div className="mb-2 rounded border border-red-500/40 bg-red-900/20 px-3 py-2 text-sm text-red-200">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium">安全校验失败</div>
+                  <pre className="mt-1 whitespace-pre-wrap text-xs text-red-200/90">
+                    {validationError}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+          {compilationError && (
+            <div className="mb-2 rounded border border-orange-500/40 bg-orange-900/20 px-3 py-2 text-sm text-orange-200">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium">编译错误</div>
+                  <pre className="mt-1 whitespace-pre-wrap text-xs text-orange-200/90">
+                    {compilationError}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+          {renderError && (
+            <div className="mb-2 rounded border border-red-500/40 bg-red-900/20 px-3 py-2 text-sm text-red-200">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium">渲染错误</div>
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-red-200/90">
+                    {renderError}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <div className="p-4 border-b border-[#3e3e42]">
         <div className="flex items-center justify-between">
           <div className="flex-1">

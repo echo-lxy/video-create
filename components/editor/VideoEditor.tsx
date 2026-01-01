@@ -173,7 +173,7 @@ export default function VideoEditor() {
                   minSize={15}
                   maxSize={40}
                   onResize={(panelSize) => {
-                    // panelSize 是 { asPercentage: number, inPixels: number }
+                    // panelSize: { asPercentage, inPixels }
                     setSidebarWidth(panelSize.inPixels);
                   }}
                 >
@@ -204,17 +204,17 @@ export default function VideoEditor() {
                     defaultSize={getBottomPanelSize()}
                     minSize={5}
                     maxSize={70}
-                  onResize={(panelSize) => {
-                    // panelSize 是 { asPercentage: number, inPixels: number }
-                    setPanelHeight(panelSize.inPixels);
-                  }}
+                    onResize={(panelSize) => {
+                      // panelSize: { asPercentage, inPixels }
+                      setPanelHeight(panelSize.inPixels);
+                    }}
                   >
                     <BottomPanelComponent height={panelHeight} onHeightChange={setPanelHeight} />
                   </Panel>
                 </>
               )}
+            </Group>
           </Group>
-        </Group>
         </div>
 
         {/* 状态栏 */}

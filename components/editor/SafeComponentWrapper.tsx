@@ -144,35 +144,21 @@ export class SafeComponentWrapper extends Component<
     }
 
     // 安全渲染组件
-    try {
-      const { component: UserComponent, fallback, onError, children, ...restProps } = this.props;
-      
-      if (!UserComponent) {
-        return null;
-      }
-
-      // 如果有 children，直接渲染 children（用于包裹其他组件）
-      if (children) {
-        return <>{children}</>;
-      }
-
-      // 否则使用 React.createElement 安全创建组件
-      return React.createElement(UserComponent, restProps);
-    } catch (error) {
-      // 如果创建组件时出错，显示错误
-      console.error('Error creating component:', error);
-      return (
-        <div className="h-full w-full flex items-center justify-center bg-[#1e1e1e] text-red-400 text-sm">
-          <div className="text-center">
-            <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-            <p>组件创建失败</p>
-            <p className="text-xs text-[#969696] mt-1">
-              {error instanceof Error ? error.message : 'Unknown error'}
-            </p>
-          </div>
-        </div>
-      );
+    const { component: UserComponent, fallback, onError, children, ...restProps } = this.props;
+    
+    if (!UserComponent) {
+      return null;
     }
+
+    // 如果有 children，直接渲染 children（用于包裹其他组件）
+    if (children) {
+      return <>{children}</>;
+    }
+
+    // 使用 React.createElement 安全创建组件
+    // 注意：React.createElement 本身不会抛出同步错误
+    // 组件渲染错误会被 Error Boundary 的 getDerivedStateFromError 捕获
+    return React.createElement(UserComponent, restProps);
   }
 }
 
