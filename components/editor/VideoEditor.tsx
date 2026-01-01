@@ -1,16 +1,80 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { Button } from '@/components/ui/button';
-import { Code2, MessageSquare, Play } from 'lucide-react';
-import AIChatPanel from '@/components/ai/AIChatPanel';
-import CodeEditor from './CodeEditor';
-import VideoPreview from './VideoPreview';
+import { Code2, MessageSquare, Play, AlertCircle } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+// 动态导入组件，避免阻塞
+const AIChatPanel = dynamic(() => import('@/components/ai/AIChatPanel'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-gray-950">
+      <div className="text-center text-gray-500 text-sm">Loading AI Panel...</div>
+    </div>
+  ),
+});
+
+const CodeEditor = dynamic(() => import('./CodeEditor'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-[#1e1e1e] text-gray-500 text-sm">
+      Loading Code Editor...
+    </div>
+  ),
+});
+
+const VideoPreview = dynamic(() => import('./VideoPreview'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-gray-950 text-gray-500 text-sm">
+      Loading Preview...
+    </div>
+  ),
+});
 
 export default function VideoEditor() {
   const { showAIPanel, showCodeEditor, toggleAIPanel, toggleCodeEditor } =
     useEditorStore();
+  const [mounted, setMounted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    
+    // 捕获全局错误
+    const handleError = (event: ErrorEvent) => {
+      console.error('VideoEditor error:', event.error);
+      setError(event.error?.message || 'Unknown error');
+    };
+
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-950">
+        <div className="text-center text-gray-400">Initializing...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-950">
+        <div className="text-center max-w-md px-4">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-red-300 mb-2">Error</h3>
+          <p className="text-sm text-gray-400 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>
+            Reload Page
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-gray-950">
