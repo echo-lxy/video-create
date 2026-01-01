@@ -137,25 +137,44 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
   useEffect(() => {
     if (activeTabs.length === 0) {
       setOrderedTabs(['editor']);
+      setActiveTab('editor');
       return;
     }
+    
     // 保持 activeTabs 的顺序，但保留 orderedTabs 中已有的顺序
     const newOrdered = activeTabs.filter(id => orderedTabs.includes(id));
     const newTabs = activeTabs.filter(id => !orderedTabs.includes(id));
     const updated = [...newOrdered, ...newTabs];
-    setOrderedTabs(updated);
-  }, [activeTabs, orderedTabs]);
+    
+    // 确保 updated 不为空
+    if (updated.length > 0) {
+      setOrderedTabs(updated);
+    } else {
+      // 如果更新后为空，使用 activeTabs
+      setOrderedTabs(activeTabs);
+    }
+  }, [activeTabs]); // 移除 orderedTabs 依赖，避免循环更新
   
   // 当activeTabs变化时，更新activeTab
   useEffect(() => {
-    if (activeTabs.length > 0) {
-      if (!activeTabs.includes(activeTab)) {
-        setActiveTab(activeTabs[0]);
-      } else if (defaultActiveTab && activeTabs.includes(defaultActiveTab)) {
-        setActiveTab(defaultActiveTab);
-      }
+    if (activeTabs.length === 0) {
+      // 如果 activeTabs 为空，设置默认标签
+      setActiveTab('editor');
+      return;
     }
-  }, [activeTabs, defaultActiveTab, activeTab]);
+    
+    // 确保 activeTab 在 activeTabs 中
+    if (!activeTabs.includes(activeTab)) {
+      // 如果当前激活的标签不在 activeTabs 中，切换到第一个可用标签
+      const firstTab = activeTabs[0];
+      if (firstTab) {
+        setActiveTab(firstTab);
+      }
+    } else if (defaultActiveTab && activeTabs.includes(defaultActiveTab) && activeTab !== defaultActiveTab) {
+      // 如果 defaultActiveTab 存在且在 activeTabs 中，切换到它
+      setActiveTab(defaultActiveTab);
+    }
+  }, [activeTabs, defaultActiveTab]); // 移除 activeTab 依赖，避免循环更新
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -171,10 +190,22 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
       setOrderedTabs((items) => {
         const oldIndex = items.indexOf(active.id as TabId);
         const newIndex = items.indexOf(over.id as TabId);
-        const newOrder = arrayMove(items, oldIndex, newIndex);
-        // 同步到父组件
-        onTabChange(newOrder);
-        return newOrder;
+        
+        // 边界检查：确保索引有效
+        if (oldIndex === -1 || newIndex === -1) {
+          console.warn('Invalid drag indices:', { oldIndex, newIndex, items });
+          return items;
+        }
+        
+        try {
+          const newOrder = arrayMove(items, oldIndex, newIndex);
+          // 同步到父组件
+          onTabChange(newOrder);
+          return newOrder;
+        } catch (error) {
+          console.error('Error in arrayMove:', error);
+          return items;
+        }
       });
     }
   };
@@ -190,10 +221,25 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
     e.stopPropagation();
     if (activeTabs.length > 1) {
       const newTabs = activeTabs.filter(id => id !== tabId);
+      
+      // 边界检查：确保新数组不为空
+      if (newTabs.length === 0) {
+        console.warn('Cannot close last tab');
+        return;
+      }
+      
       onTabChange(newTabs);
       setOrderedTabs(orderedTabs.filter(id => id !== tabId));
+      
       if (activeTab === tabId) {
-        setActiveTab(newTabs[0]);
+        // 确保新激活的标签存在
+        const nextTab = newTabs[0];
+        if (nextTab) {
+          setActiveTab(nextTab);
+        } else {
+          // 如果新数组为空，设置默认标签
+          setActiveTab('editor');
+        }
       }
     }
   };
@@ -202,8 +248,13 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
   const hasPreview = activeTabs.includes('preview');
   const showSplit = hasEditor && hasPreview;
 
-  // 获取当前显示的标签（按顺序）
+  // 获取当前显示的标签（按顺序），确保不为空
   const visibleTabs = orderedTabs.filter(id => activeTabs.includes(id));
+  
+  // 如果 visibleTabs 为空，使用 activeTabs 作为后备
+  const safeVisibleTabs: TabId[] = visibleTabs.length > 0 
+    ? visibleTabs 
+    : (activeTabs.length > 0 ? activeTabs : ['editor']);
 
   return (
     <div className="w-full h-full flex flex-col bg-[#1e1e1e] overflow-hidden">
@@ -215,10 +266,10 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={visibleTabs}
+            items={safeVisibleTabs}
             strategy={horizontalListSortingStrategy}
           >
-            {visibleTabs.map((tabId) => {
+            {safeVisibleTabs.map((tabId) => {
               const tab = tabs.find(t => t.id === tabId);
               if (!tab) return null;
               
