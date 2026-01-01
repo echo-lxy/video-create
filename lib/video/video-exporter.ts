@@ -1,12 +1,13 @@
 /**
  * 视频导出功能
- * 支持多种浏览器端导出方案：
- * 1. WebCodecs API（最佳，Chrome 94+, Edge 94+, Safari 16.4+）
- * 2. Canvas + MediaRecorder（兼容方案）
- * 3. 屏幕录制（备用方案）
+ * 使用 Remotion 官方客户端渲染 API (@remotion/web-renderer)
+ * 在浏览器中直接渲染高质量视频，使用 WebCodecs 和 Mediabunny
+ * 
+ * 参考文档：https://www.remotion.dev/docs/client-side-rendering/
  */
 
 import { saveAs } from 'file-saver';
+import { renderMediaOnWeb } from '@remotion/web-renderer';
 
 export interface ExportOptions {
   component: React.ComponentType;
@@ -15,35 +16,86 @@ export interface ExportOptions {
   width: number;
   height: number;
   outputPath?: string;
-  codec?: 'h264' | 'vp8' | 'vp9';
-  quality?: number;
+  codec?: 'h264' | 'h265' | 'vp8' | 'vp9' | 'av1';
+  quality?: 'very-low' | 'low' | 'medium' | 'high' | 'very-high' | number;
+  onProgress?: (progress: { renderedFrames: number; encodedFrames: number }) => void;
 }
 
 /**
- * 导出视频（自动选择最佳方案）
- * 当前直接使用屏幕录制方案（WebCodecs 和 Canvas 方案需要从 Player 获取帧图像，暂未实现）
+ * 导出视频（使用 Remotion 官方客户端渲染 API）
+ * 
+ * 这是 Remotion 官方提供的浏览器端视频渲染方案：
+ * - 使用 WebCodecs API 进行编码
+ * - 使用 Mediabunny 进行视频处理
+ * - 完全在浏览器中运行，无需服务器
+ * - 高质量视频输出
  */
 export async function exportVideo(
   options: ExportOptions,
   playerRef?: React.RefObject<any>
 ): Promise<void> {
   try {
-    console.log('开始导出视频...', options);
+    console.log('开始导出视频（使用 Remotion 客户端渲染）...', {
+      durationInFrames: options.durationInFrames,
+      fps: options.fps,
+      width: options.width,
+      height: options.height,
+    });
+
+    // 使用 Remotion 官方客户端渲染 API
+    // 参考文档：https://www.remotion.dev/docs/client-side-rendering/
+    const { getBlob } = await renderMediaOnWeb({
+      composition: {
+        component: options.component,
+        durationInFrames: options.durationInFrames,
+        fps: options.fps,
+        width: options.width,
+        height: options.height,
+        calculateMetadata: null,
+        id: 'my-video-composition',
+      },
+      inputProps: {},
+      // 视频编码器：h264（最佳兼容性）、h265（更小文件）、vp8/vp9/av1（WebM）
+      videoCodec: options.codec || 'h264',
+      // 视频质量：'very-low' | 'low' | 'medium' | 'high' | 'very-high' | number (bitrate in bps)
+      videoBitrate: options.quality || 'high',
+      // 容器格式：mp4（H.264/H.265）或 webm（VP8/VP9/AV1）
+      container: (options.codec === 'vp8' || options.codec === 'vp9' || options.codec === 'av1') ? 'webm' : 'mp4',
+      // 进度回调
+      onProgress: options.onProgress || null,
+      // 硬件加速：优先使用硬件加速（如果可用）
+      hardwareAcceleration: 'prefer-hardware',
+    });
+
+    // 获取视频 Blob
+    const blob = await getBlob();
     
-    // 直接使用屏幕录制方案（当前唯一可用且稳定的方案）
-    // WebCodecs 和 Canvas 方案需要从 Remotion Player 获取帧图像，当前暂未实现
-    console.log('使用屏幕录制导出视频...');
-    return await startScreenRecording(options);
+    // 生成文件名
+    const timestamp = Date.now();
+    const filename = options.outputPath || `video-${timestamp}.mp4`;
+    
+    // 下载视频
+    saveAs(blob, filename);
+    
+    console.log('✅ 视频导出成功:', filename, {
+      size: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
+      type: blob.type,
+    });
     
   } catch (error: any) {
-    console.error('视频导出失败:', error);
-    throw new Error(`视频导出失败: ${error.message}`);
+    console.error('❌ 视频导出失败:', error);
+    
+    // 如果 Remotion 客户端渲染失败，回退到屏幕录制
+    if (error.message?.includes('not supported') || 
+        error.message?.includes('WebCodecs') ||
+        error.message?.includes('experimental')) {
+      console.warn('⚠️ Remotion 客户端渲染不可用，回退到屏幕录制方案...');
+      return await startScreenRecording(options);
+    }
+    
+    throw new Error(`视频导出失败: ${error.message || '未知错误'}`);
   }
 }
-
-// 注意：WebCodecs 和 Canvas 方案已暂时禁用
-// 原因：需要从 Remotion Player 获取帧图像，当前 Remotion Player 不直接暴露此功能
-// 未来改进方向：研究 Remotion Player API 或使用 OffscreenCanvas 实现
 
 /**
  * 使用屏幕录制 API 录制视频

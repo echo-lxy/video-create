@@ -19,6 +19,7 @@ export default function VideoPreview() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const playerRef = useRef<PlayerRef>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{ renderedFrames: number; encodedFrames: number } | null>(null);
   
   // 视频配置
   const durationInFrames = 300;
@@ -277,6 +278,7 @@ export default function VideoPreview() {
     }
 
     setIsExporting(true);
+    setExportProgress({ renderedFrames: 0, encodedFrames: 0 });
     try {
       await exportVideo({
         component: stableComponent,
@@ -284,10 +286,19 @@ export default function VideoPreview() {
         fps,
         width,
         height,
+        quality: 'high', // 高质量导出
+        codec: 'h264', // H.264 编码，最佳兼容性
+        onProgress: (progress) => {
+          setExportProgress(progress);
+          const progressPercent = Math.round((progress.encodedFrames / durationInFrames) * 100);
+          console.log(`导出进度: ${progressPercent}% (已渲染: ${progress.renderedFrames}/${durationInFrames}, 已编码: ${progress.encodedFrames}/${durationInFrames})`);
+        },
       }, playerRef);
+      setExportProgress(null);
       alert('视频导出成功！');
     } catch (error: any) {
       console.error('导出失败:', error);
+      setExportProgress(null);
       alert(`视频导出失败: ${error.message}`);
     } finally {
       setIsExporting(false);
@@ -346,6 +357,26 @@ export default function VideoPreview() {
               <p className="text-xs text-gray-500 mt-1">
                 Component: {component.displayName || component.name || 'Unknown'}
               </p>
+            )}
+            {isExporting && exportProgress && (
+              <div className="mt-2">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+                  <span className="text-xs text-blue-400">
+                    导出中: {Math.round((exportProgress.encodedFrames / durationInFrames) * 100)}%
+                  </span>
+                </div>
+                <div className="mt-1 w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-full transition-all duration-300"
+                    style={{ width: `${(exportProgress.encodedFrames / durationInFrames) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  已渲染: {exportProgress.renderedFrames}/{durationInFrames} 帧 | 
+                  已编码: {exportProgress.encodedFrames}/{durationInFrames} 帧
+                </p>
+              </div>
             )}
           </div>
         </div>
