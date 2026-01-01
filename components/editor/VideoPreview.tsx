@@ -65,18 +65,29 @@ export default function VideoPreview() {
         // 使用模块包装器执行 ESM 代码（最佳实践）
         // 将编译后的 ESM 代码转换为可执行的函数，注入 React 和 remotion
         
-        // 从 remotion 解构常用 API（方便用户直接使用）
+        // 从 remotion 解构所有常用 API（方便用户直接使用，无需导入）
+        // 包括：组件、Hooks、工具函数、动画函数等
         const {
+          // 组件
           AbsoluteFill,
-          useCurrentFrame,
-          interpolate,
-          useVideoConfig,
-          staticFile,
           Sequence,
           Video,
           Audio,
           Img,
           OffthreadVideo,
+          // Hooks
+          useCurrentFrame,
+          useVideoConfig,
+          // 工具函数
+          interpolate,
+          spring,
+          staticFile,
+          // Easing
+          Easing,
+          // 其他常用 API
+          continueRender,
+          delayRender,
+          getInputProps,
         } = remotion;
 
         // 创建模块执行环境（CommonJS 风格）
@@ -115,41 +126,65 @@ export default function VideoPreview() {
         }
 
         // 执行代码，注入 React 和 remotion 以及所有常用 API
+        // 这样用户可以直接使用这些 API，无需导入
+        // 注意：如果某个 API 不存在，使用 remotion 对象作为后备（用户可以使用 remotion.spring 等）
         // eslint-disable-next-line no-eval
         const executeModule = new Function(
           'React',
           'remotion',
           'module',
           'exports',
+          // 组件
           'AbsoluteFill',
-          'useCurrentFrame',
-          'interpolate',
-          'useVideoConfig',
-          'staticFile',
           'Sequence',
           'Video',
           'Audio',
           'Img',
           'OffthreadVideo',
+          // Hooks
+          'useCurrentFrame',
+          'useVideoConfig',
+          // 工具函数
+          'interpolate',
+          'spring',
+          'staticFile',
+          // Easing
+          'Easing',
+          // 其他常用 API
+          'continueRender',
+          'delayRender',
+          'getInputProps',
           executableCode
         );
 
         // 执行模块，获取导出的组件
+        // 注入所有 Remotion API，用户可以直接使用
+        // 如果某个 API 不存在，用户也可以使用 remotion.spring 等方式访问
         executeModule(
           React,
           remotion,
           module,
           exports,
+          // 组件
           AbsoluteFill,
-          useCurrentFrame,
-          interpolate,
-          useVideoConfig,
-          staticFile,
           Sequence,
           Video,
           Audio,
           Img,
-          OffthreadVideo
+          OffthreadVideo,
+          // Hooks
+          useCurrentFrame,
+          useVideoConfig,
+          // 工具函数
+          interpolate,
+          spring,
+          staticFile,
+          // Easing
+          Easing,
+          // 其他常用 API
+          continueRender,
+          delayRender,
+          getInputProps
         );
 
         // 尝试多种方式获取组件
