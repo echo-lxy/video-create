@@ -186,32 +186,16 @@ export default function VideoPreview() {
           componentPreview: ComponentClass.toString().substring(0, 200),
         });
 
-        // 包装组件以确保 Remotion Player 可以正确使用
-        // Remotion 需要组件接受 props 并返回 React 元素
-        const WrappedComponent = React.forwardRef((props: any, ref: any) => {
-          try {
-            // 确保使用 React.createElement 来创建组件
-            if (typeof ComponentClass === 'function') {
-              return React.createElement(ComponentClass, props);
-            }
-            throw new Error('ComponentClass is not a function');
-          } catch (error: any) {
-            console.error('Error rendering component:', error);
-            return React.createElement('div', {
-              style: { padding: '20px', color: 'red', backgroundColor: 'black' },
-            }, `Error: ${error.message}`);
-          }
+        // 直接使用组件，Remotion Player 可以直接使用函数组件
+        // 不需要复杂的包装，只需要确保组件是有效的 React 组件
+        console.log('✅ Component ready, setting to state:', {
+          componentType: typeof ComponentClass,
+          componentName: ComponentClass.name || 'Anonymous',
+          isFunction: typeof ComponentClass === 'function',
         });
 
-        // 设置显示名称以便调试
-        WrappedComponent.displayName = 'MyVideo';
-
-        console.log('✅ Wrapped component created:', {
-          displayName: WrappedComponent.displayName,
-          componentType: typeof WrappedComponent,
-        });
-
-        setComponent(() => WrappedComponent);
+        // 直接设置组件，Remotion Player 会处理
+        setComponent(() => ComponentClass);
       } catch (error: any) {
         console.error('❌ Component extraction failed:', error);
         setCompilationError(error.message || 'Unknown error');
@@ -276,30 +260,63 @@ export default function VideoPreview() {
     );
   }
 
+  // 调试信息
+  useEffect(() => {
+    const store = useEditorStore.getState();
+    if (component) {
+      console.log('📹 VideoPreview: Component ready for Player', {
+        componentType: typeof component,
+        componentName: component.displayName || component.name || 'Unknown',
+        hasComponent: !!component,
+        component: component,
+      });
+    } else {
+      console.log('⏳ VideoPreview: Waiting for component...', {
+        isCompiling: store.isCompiling,
+        compilationError: store.compilationError,
+        validationError,
+        codeLength: code.length,
+      });
+    }
+  }, [component, code, validationError]);
+
   return (
     <div className="h-full flex flex-col bg-gray-950">
       <div className="p-4 border-b border-gray-800">
         <h3 className="text-sm font-medium text-gray-300">Video Preview</h3>
+        {component && (
+          <p className="text-xs text-gray-500 mt-1">
+            Component: {component.displayName || component.name || 'Unknown'}
+          </p>
+        )}
       </div>
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="bg-black rounded-lg overflow-hidden shadow-2xl">
+        <div className="bg-black rounded-lg overflow-hidden shadow-2xl w-full max-w-4xl">
           {component ? (
-            <Player
-              component={component}
-              durationInFrames={300}
-              compositionWidth={1920}
-              compositionHeight={1080}
-              fps={30}
-              controls
-              acknowledgeRemotionLicense={true}
-              style={{
-                width: '100%',
-                maxWidth: '800px',
-              }}
-            />
+            <div className="w-full">
+              <Player
+                component={component}
+                durationInFrames={300}
+                compositionWidth={1920}
+                compositionHeight={1080}
+                fps={30}
+                controls
+                acknowledgeRemotionLicense={true}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                }}
+              />
+            </div>
           ) : (
             <div className="w-full h-96 flex items-center justify-center text-gray-400">
-              No component to preview
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                <p>No component to preview</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  {useEditorStore.getState().isCompiling ? 'Compiling...' : 'Waiting for code...'}
+                </p>
+              </div>
             </div>
           )}
         </div>
