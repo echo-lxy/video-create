@@ -291,7 +291,7 @@ export default function VideoPreview() {
               compositionHeight={1080}
               fps={30}
               controls
-              acknowledgeRemotionLicense
+              acknowledgeRemotionLicense={true}
               style={{
                 width: '100%',
                 maxWidth: '800px',

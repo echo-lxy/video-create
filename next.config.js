@@ -22,6 +22,11 @@ const nextConfig = {
   // 优化生产构建
   productionBrowserSourceMaps: false,
   webpack: (config, { isServer, dev }) => {
+    // 禁用 source map（减少警告）
+    if (!isServer) {
+      config.devtool = false;
+    }
+    
     // 支持 WASM
     config.experiments = {
       ...config.experiments,

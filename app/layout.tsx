@@ -7,6 +7,9 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'AI Video Code Generator',
   description: 'AI-powered Remotion video code generator with interactive coding experience',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
