@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
-import { ErrorBoundary } from '@/components/editor/ErrorBoundary';
+import { ErrorBoundary } from 'react-error-boundary';
 import { initGlobalErrorHandler } from '@/lib/utils/error-handler';
 
 // 调试模式：在 URL 中添加 ?debug=1 来显示加载状态
@@ -106,7 +106,7 @@ export default function Home() {
     <main className="h-screen w-screen overflow-hidden">
       <GlobalErrorHandler>
         <ErrorBoundary
-          fallback={
+          fallbackRender={({ error, resetErrorBoundary }) => (
             <div className="h-screen w-screen flex items-center justify-center bg-[#1e1e1e]">
               <div className="text-center max-w-2xl px-4">
                 <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
@@ -116,15 +116,31 @@ export default function Home() {
                 <p className="text-[#cccccc] mb-4">
                   编辑器加载时发生错误。请刷新页面重试。
                 </p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="mt-4 px-4 py-2 bg-[#007acc] text-white rounded hover:bg-[#005a9e]"
-                >
-                  刷新页面
-                </button>
+                {error && (
+                  <pre className="text-xs text-red-400 bg-red-900/30 p-3 rounded mb-4 overflow-auto text-left max-h-32">
+                    {error.message}
+                  </pre>
+                )}
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={resetErrorBoundary}
+                    className="px-4 py-2 bg-[#007acc] text-white rounded hover:bg-[#005a9e]"
+                  >
+                    重试
+                  </button>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                  >
+                    刷新页面
+                  </button>
+                </div>
               </div>
             </div>
-          }
+          )}
+          onError={(error, errorInfo) => {
+            console.error('App Error Boundary caught:', error, errorInfo);
+          }}
         >
           <Suspense fallback={<LoadingComponent />}>
             <VideoEditor />

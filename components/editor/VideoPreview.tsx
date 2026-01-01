@@ -13,8 +13,7 @@ import ExportDialog, { ExportSettings } from './ExportDialog';
 import { exportWithSettings } from '@/lib/video/export-formats';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ErrorBoundary } from './ErrorBoundary';
-import { SafeComponentWrapper } from './SafeComponentWrapper';
+import { ErrorBoundary } from 'react-error-boundary';
 import { useTimelineStore } from '@/lib/store/timeline-store';
 import { Download } from 'lucide-react';
 
@@ -355,43 +354,10 @@ export default function VideoPreview() {
   }, [code, debouncedCompile]);
 
   // 使用 useMemo 确保组件引用稳定，避免 React Hooks 顺序问题
-  // 创建一个安全的组件包装器，确保错误不会传播
-  const safeComponent = useMemo(() => {
+  const stableComponent = useMemo(() => {
     if (!component) return null;
-    
-    // 创建一个包装组件，用错误边界保护
-    const SafeWrappedComponent: React.ComponentType = (props: any) => {
-      return (
-        <SafeComponentWrapper
-          component={component}
-          onError={(error: Error) => {
-            console.error('SafeComponentWrapper caught error in wrapped component:', error);
-            setRenderError(error.message);
-          }}
-          fallback={
-            <div className="w-full h-full flex items-center justify-center bg-[#1e1e1e] text-red-400">
-              <div className="text-center">
-                <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-                <p className="text-sm">组件渲染失败</p>
-                <p className="text-xs text-[#969696] mt-1">
-                  请检查代码并修复错误
-                </p>
-              </div>
-            </div>
-          }
-          {...props}
-        />
-      );
-    };
-    
-    // 复制组件名称以便调试
-    SafeWrappedComponent.displayName = component.displayName || component.name || 'SafeWrappedComponent';
-    
-    return SafeWrappedComponent;
+    return component;
   }, [component]);
-
-  // 保持向后兼容
-  const stableComponent = safeComponent;
 
   // 处理视频导出 - 使用新的导出对话框
   const handleExport = useCallback(async (settings: ExportSettings) => {
@@ -656,11 +622,11 @@ export default function VideoPreview() {
         <div className="bg-black rounded-lg overflow-hidden shadow-2xl w-full max-w-4xl">
           {stableComponent ? (
             <ErrorBoundary
-              onError={(error: Error, errorInfo: React.ErrorInfo) => {
-                console.error('Outer ErrorBoundary caught error:', error, errorInfo);
+              onError={(error: Error) => {
+                console.error('Outer ErrorBoundary caught error:', error);
                 setRenderError(error.message || 'Component render failed');
               }}
-              fallback={
+              fallbackRender={({ error, resetErrorBoundary }) => (
                 <div className="w-full h-96 flex items-center justify-center text-[#969696]">
                   <div className="text-center max-w-md px-4">
                     <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
@@ -675,21 +641,33 @@ export default function VideoPreview() {
                         {renderError}
                       </pre>
                     )}
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setRenderError(null);
-                        setComponent(null);
-                        // 触发重新编译
-                        const event = new CustomEvent('force-recompile');
-                        window.dispatchEvent(event);
-                      }}
-                    >
-                      清除错误并重试
-                    </Button>
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setRenderError(null);
+                          resetErrorBoundary();
+                        }}
+                      >
+                        重试
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setRenderError(null);
+                          setComponent(null);
+                          // 触发重新编译
+                          const event = new CustomEvent('force-recompile');
+                          window.dispatchEvent(event);
+                        }}
+                      >
+                        清除并重新编译
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              }
+              )}
             >
               <div className="w-full" style={{ minHeight: '400px', position: 'relative' }}>
                 {/* Player 使用已经安全包装的组件 */}

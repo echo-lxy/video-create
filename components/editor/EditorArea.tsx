@@ -4,7 +4,7 @@ import { lazy, Suspense, useState, useEffect } from 'react';
 import { Code2, Monitor, X } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Loader2 } from 'lucide-react';
-import { ErrorBoundary } from './ErrorBoundary';
+import { ErrorBoundary } from 'react-error-boundary';
 
 // 懒加载组件
 const CodeEditor = lazy(() => import('./CodeEditor').then(m => ({ default: m.default })));
@@ -115,20 +115,28 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-hidden">
-        <ErrorBoundary>
-          <Suspense fallback={<LoadingPlaceholder text="Loading..." />}>
-            {activeTab === 'editor' && activeTabs.includes('editor') && (
-              <div className="h-full">
+        <Suspense fallback={<LoadingPlaceholder text="Loading..." />}>
+          {activeTab === 'editor' && activeTabs.includes('editor') && (
+            <div className="h-full">
+              <ErrorBoundary
+                fallback={<LoadingPlaceholder text="Code Editor Error" />}
+                onError={(error) => console.error('CodeEditor error:', error)}
+              >
                 <CodeEditor />
-              </div>
-            )}
-            {activeTab === 'preview' && activeTabs.includes('preview') && (
-              <div className="h-full">
+              </ErrorBoundary>
+            </div>
+          )}
+          {activeTab === 'preview' && activeTabs.includes('preview') && (
+            <div className="h-full">
+              <ErrorBoundary
+                fallback={<LoadingPlaceholder text="Video Preview Error" />}
+                onError={(error) => console.error('VideoPreview error:', error)}
+              >
                 <VideoPreview />
-              </div>
-            )}
-          </Suspense>
-        </ErrorBoundary>
+              </ErrorBoundary>
+            </div>
+          )}
+        </Suspense>
       </div>
     </div>
   );

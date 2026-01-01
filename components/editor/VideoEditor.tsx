@@ -11,7 +11,7 @@ import EditorArea from './EditorArea';
 import BottomPanelComponent from './Panel';
 import StatusBar from './StatusBar';
 import { ActivityId } from './ActivityBar';
-import { ErrorBoundary } from './ErrorBoundary';
+import { ErrorBoundary } from 'react-error-boundary';
 
 export default function VideoEditor() {
   const {
@@ -151,7 +151,32 @@ export default function VideoEditor() {
   };
 
   return (
-    <ErrorBoundary>
+    <ErrorBoundary
+      fallbackRender={({ error, resetErrorBoundary }) => (
+        <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
+          <div className="text-center max-w-2xl px-4">
+            <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-red-300 mb-2">
+              编辑器错误
+            </h2>
+            <p className="text-[#cccccc] mb-4">
+              编辑器组件发生错误。
+            </p>
+            {error && (
+              <pre className="text-xs text-red-400 bg-red-900/30 p-3 rounded mb-4 overflow-auto text-left max-h-32">
+                {error.message}
+              </pre>
+            )}
+            <Button onClick={resetErrorBoundary}>
+              重试
+            </Button>
+          </div>
+        </div>
+      )}
+      onError={(error, errorInfo) => {
+        console.error('VideoEditor Error Boundary caught:', error, errorInfo);
+      }}
+    >
       <div className="h-full flex flex-col bg-[#1e1e1e] overflow-hidden">
         {/* 主布局：活动栏 + 侧边栏 + 编辑区 + 底部面板 */}
         <div className="flex-1 flex overflow-hidden">
