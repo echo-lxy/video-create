@@ -4,35 +4,10 @@ import { useState, useEffect } from 'react';
 import { useEditorStore } from '@/lib/store/editor-store';
 import { Button } from '@/components/ui/button';
 import { Code2, MessageSquare, Play, AlertCircle } from 'lucide-react';
-import dynamic from 'next/dynamic';
-
-// 动态导入组件，避免阻塞
-const AIChatPanel = dynamic(() => import('@/components/ai/AIChatPanel'), {
-  ssr: false,
-  loading: () => (
-    <div className="h-full flex items-center justify-center bg-gray-950">
-      <div className="text-center text-gray-500 text-sm">Loading AI Panel...</div>
-    </div>
-  ),
-});
-
-const CodeEditor = dynamic(() => import('./CodeEditor'), {
-  ssr: false,
-  loading: () => (
-    <div className="h-full flex items-center justify-center bg-[#1e1e1e] text-gray-500 text-sm">
-      Loading Code Editor...
-    </div>
-  ),
-});
-
-const VideoPreview = dynamic(() => import('./VideoPreview'), {
-  ssr: false,
-  loading: () => (
-    <div className="h-full flex items-center justify-center bg-gray-950 text-gray-500 text-sm">
-      Loading Preview...
-    </div>
-  ),
-});
+// 直接导入，避免动态导入导致的 chunk 加载问题
+import AIChatPanel from '@/components/ai/AIChatPanel';
+import CodeEditor from './CodeEditor';
+import VideoPreview from './VideoPreview';
 
 export default function VideoEditor() {
   const { showAIPanel, showCodeEditor, toggleAIPanel, toggleCodeEditor } =
