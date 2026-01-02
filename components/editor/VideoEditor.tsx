@@ -191,7 +191,7 @@ export default function VideoEditor() {
               proportionalLayout={false}
               onChange={(sizes) => {
                 // 跟踪侧边栏宽度变化
-                if (showSidebar && sizes.length > 0) {
+                if (showSidebar && sizes && Array.isArray(sizes) && sizes.length > 0 && sizes[0] != null) {
                   setSidebarWidth(sizes[0]);
                 }
               }}
@@ -217,7 +217,7 @@ export default function VideoEditor() {
                   proportionalLayout={false}
                   onChange={(sizes) => {
                     // 跟踪底部面板高度变化
-                    if (showBottomPanel && sizes.length > 1) {
+                    if (showBottomPanel && sizes && Array.isArray(sizes) && sizes.length > 1 && sizes[1] != null) {
                       setPanelHeight(sizes[1]);
                     }
                   }}

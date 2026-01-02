@@ -466,9 +466,11 @@ export default function VideoPreview() {
           vertical
           proportionalLayout={false}
           onChange={(sizes) => {
-            if (sizes.length === 2) {
+            if (sizes && Array.isArray(sizes) && sizes.length === 2 && sizes[0] != null && sizes[1] != null) {
               const total = sizes[0] + sizes[1];
-              setPlayerHeight((sizes[0] / total) * 100);
+              if (total > 0) {
+                setPlayerHeight((sizes[0] / total) * 100);
+              }
             }
           }}
         >

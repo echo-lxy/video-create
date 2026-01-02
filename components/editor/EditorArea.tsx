@@ -326,9 +326,11 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
             vertical
             proportionalLayout={false}
             onChange={(sizes) => {
-              if (sizes.length === 2) {
+              if (sizes && Array.isArray(sizes) && sizes.length === 2 && sizes[0] != null && sizes[1] != null) {
                 const total = sizes[0] + sizes[1];
-                setEditorSize((sizes[0] / total) * 100);
+                if (total > 0) {
+                  setEditorSize((sizes[0] / total) * 100);
+                }
               }
             }}
           >
