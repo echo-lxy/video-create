@@ -197,17 +197,33 @@ export default function EditorArea({ activeTabs, onTabChange, onTabClose, defaul
 
     if (over && active.id !== over.id) {
       setOrderedTabs((items) => {
+        // 确保 items 不为空
+        if (!items || items.length === 0) {
+          console.warn('Cannot drag: items array is empty');
+          return items;
+        }
+        
         const oldIndex = items.indexOf(active.id as TabId);
         const newIndex = items.indexOf(over.id as TabId);
         
-        // 边界检查：确保索引有效
+        // 边界检查：确保索引有效且在范围内
         if (oldIndex === -1 || newIndex === -1) {
-          console.warn('Invalid drag indices:', { oldIndex, newIndex, items });
+          console.warn('Invalid drag indices:', { oldIndex, newIndex, items, activeId: active.id, overId: over.id });
+          return items;
+        }
+        
+        if (oldIndex < 0 || oldIndex >= items.length || newIndex < 0 || newIndex >= items.length) {
+          console.warn('Drag indices out of bounds:', { oldIndex, newIndex, length: items.length });
           return items;
         }
         
         try {
           const newOrder = arrayMove(items, oldIndex, newIndex);
+          // 确保新数组有效
+          if (!newOrder || newOrder.length === 0) {
+            console.warn('arrayMove returned invalid result');
+            return items;
+          }
           // 同步到父组件
           onTabChange(newOrder);
           return newOrder;

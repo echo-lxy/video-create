@@ -82,16 +82,31 @@ export default function VideoPreview() {
           Easing, continueRender, delayRender, getInputProps
         } = remotion;
 
-        const executableCode = `
-          ${compiledCode}
-          
-          // 确保 MyVideo 被导出
-          if (typeof MyVideo === 'undefined') {
-            throw new Error('MyVideo component is not defined. Make sure you export a component named "MyVideo".');
-          }
-        `;
+        // 处理 ESM 格式的代码：移除 export 语句，改为赋值给全局变量
+        let executableCode = compiledCode;
+        
+        // 移除 export 关键字，改为赋值
+        executableCode = executableCode.replace(
+          /export\s+(const|let|var|function|class)\s+MyVideo\s*=/g,
+          'const MyVideo ='
+        );
+        executableCode = executableCode.replace(
+          /export\s+{\s*MyVideo\s*};?/g,
+          ''
+        );
+        executableCode = executableCode.replace(
+          /export\s+default\s+MyVideo;?/g,
+          ''
+        );
+        
+        // 确保 MyVideo 被定义
+        if (!executableCode.includes('MyVideo')) {
+          throw new Error('MyVideo component is not defined in the compiled code.');
+        }
 
         const moduleExports: any = {};
+        
+        // 使用 IIFE (立即执行函数表达式) 来执行代码
         const moduleFactory = new Function(
           'React',
           'remotion',
@@ -109,42 +124,47 @@ export default function VideoPreview() {
           'continueRender',
           'delayRender',
           'getInputProps',
-          'module',
           'exports',
-          executableCode
+          `
+            (function() {
+              ${executableCode}
+              
+              // 将 MyVideo 赋值给 exports
+              if (typeof MyVideo !== 'undefined') {
+                exports.MyVideo = MyVideo;
+              } else {
+                throw new Error('MyVideo component is not defined. Make sure your code exports a component named "MyVideo".');
+              }
+            })();
+          `
         );
 
-        moduleFactory(
-          React,
-          remotion,
-          AbsoluteFill,
-          Sequence,
-          Video,
-          Audio,
-          Img,
-          staticFile,
-          useCurrentFrame,
-          useVideoConfig,
-          interpolate,
-          spring,
-          Easing,
-          continueRender,
-          delayRender,
-          getInputProps,
-          { exports: moduleExports },
-          moduleExports
-        );
+        try {
+          moduleFactory(
+            React,
+            remotion,
+            AbsoluteFill,
+            Sequence,
+            Video,
+            Audio,
+            Img,
+            staticFile,
+            useCurrentFrame,
+            useVideoConfig,
+            interpolate,
+            spring,
+            Easing,
+            continueRender,
+            delayRender,
+            getInputProps,
+            moduleExports
+          );
+        } catch (execError: any) {
+          console.error('Module factory execution error:', execError);
+          throw new Error(`Failed to execute compiled code: ${execError.message}`);
+        }
 
         let ComponentClass = moduleExports.MyVideo;
-        
-        if (!ComponentClass) {
-          try {
-            const globalScope = eval('(function() { ' + executableCode + '; return typeof MyVideo !== "undefined" ? MyVideo : null; })()');
-            ComponentClass = globalScope;
-          } catch (evalError) {
-            console.warn('Failed to get component from global scope:', evalError);
-          }
-        }
         
         if (!ComponentClass) {
           throw new Error(
