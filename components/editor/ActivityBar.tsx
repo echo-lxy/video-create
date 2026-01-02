@@ -14,18 +14,18 @@ const activities: Array<{
   id: ActivityId;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  tooltip: string;
 }> = [
-  { id: 'ai', icon: MessageSquare, label: 'AI助手', tooltip: 'AI Assistant' },
-  { id: 'assets', icon: FolderOpen, label: '资源', tooltip: 'Assets' },
-  { id: 'prompt', icon: FileText, label: '模板', tooltip: 'Prompt Template' },
-  { id: 'editor', icon: Code2, label: '代码', tooltip: 'Code Editor' },
-  { id: 'preview', icon: Monitor, label: '预览', tooltip: 'Preview' },
+  { id: 'ai', icon: MessageSquare, label: 'AI助手' },
+  { id: 'assets', icon: FolderOpen, label: '资源' },
+  { id: 'prompt', icon: FileText, label: '模板' },
+  { id: 'editor', icon: Code2, label: '代码' },
+  { id: 'preview', icon: Monitor, label: '预览' },
 ];
 
 export default function ActivityBar({ activeActivity, onActivityChange }: ActivityBarProps) {
   return (
-    <div className="h-full w-full bg-[#2d2d30] border-r border-[#3e3e42] flex flex-col items-center py-2 overflow-y-auto">
+    <div className="h-full w-full flex flex-col items-center py-2 overflow-y-auto">
+      {/* 主要活动 */}
       {activities.map((activity) => {
         const Icon = activity.icon;
         const isActive = activeActivity === activity.id;
@@ -35,12 +35,12 @@ export default function ActivityBar({ activeActivity, onActivityChange }: Activi
             key={activity.id}
             onClick={() => onActivityChange(activity.id)}
             className={cn(
-              'w-10 h-10 flex items-center justify-center rounded mb-1 transition-colors relative group',
+              'w-10 h-10 flex items-center justify-center rounded mb-1 transition-colors relative',
               isActive
                 ? 'bg-[#37373d] text-white'
-                : 'text-[#cccccc] hover:bg-[#37373d] hover:text-white'
+                : 'text-[#969696] hover:bg-[#37373d] hover:text-white'
             )}
-            title={activity.tooltip}
+            title={activity.label}
           >
             <Icon className="w-5 h-5" />
             {isActive && (
@@ -50,17 +50,17 @@ export default function ActivityBar({ activeActivity, onActivityChange }: Activi
         );
       })}
       
-      {/* 设置按钮 - 固定在底部 */}
+      {/* 设置按钮 - 底部 */}
       <div className="mt-auto">
         <button
           onClick={() => onActivityChange('settings')}
           className={cn(
-            'w-10 h-10 flex items-center justify-center rounded transition-colors relative group',
+            'w-10 h-10 flex items-center justify-center rounded transition-colors relative',
             activeActivity === 'settings'
               ? 'bg-[#37373d] text-white'
-              : 'text-[#cccccc] hover:bg-[#37373d] hover:text-white'
+              : 'text-[#969696] hover:bg-[#37373d] hover:text-white'
           )}
-          title="Settings"
+          title="设置"
         >
           <Settings className="w-5 h-5" />
           {activeActivity === 'settings' && (
@@ -71,4 +71,3 @@ export default function ActivityBar({ activeActivity, onActivityChange }: Activi
     </div>
   );
 }
-

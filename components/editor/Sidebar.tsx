@@ -1,41 +1,81 @@
 'use client';
 
-import { lazy, Suspense } from 'react';
-import { ActivityId } from './ActivityBar';
+import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
+import { ActivityId } from './ActivityBar';
 
-// 懒加载组件
-const AIChatPanel = lazy(() => import('@/components/ai/AIChatPanel').then(m => ({ default: m.default })));
-const AssetManager = lazy(() => import('@/components/assets/AssetManager').then(m => ({ default: m.default })));
-const PromptTemplateEditor = lazy(() => import('@/components/prompt/PromptTemplateEditor').then(m => ({ default: m.default })));
+// 懒加载侧边栏组件
+const AiAssistant = dynamic(() => import('./AiAssistant'), {
+  ssr: false,
+  loading: () => <LoadingPlaceholder text="加载 AI 助手..." />
+});
+
+const AssetsManager = dynamic(() => import('./AssetsManager'), {
+  ssr: false,
+  loading: () => <LoadingPlaceholder text="加载资源管理..." />
+});
+
+const PromptTemplate = dynamic(() => import('./PromptTemplate'), {
+  ssr: false,
+  loading: () => <LoadingPlaceholder text="加载模板..." />
+});
+
+const Settings = dynamic(() => import('./Settings'), {
+  ssr: false,
+  loading: () => <LoadingPlaceholder text="加载设置..." />
+});
 
 interface SidebarProps {
   activeActivity: ActivityId | null;
-  width: number;
 }
 
-const LoadingPlaceholder = ({ text }: { text: string }) => (
-  <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
-    <div className="text-center text-[#cccccc] text-sm">
-      <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-      <p>{text}</p>
-    </div>
-  </div>
-);
-
-export default function Sidebar({ activeActivity, width }: SidebarProps) {
-  if (!activeActivity || !['ai', 'assets', 'prompt'].includes(activeActivity)) {
-    return null;
-  }
-
+function LoadingPlaceholder({ text }: { text: string }) {
   return (
-    <div className="w-full h-full bg-[#252526] border-r border-[#3e3e42] overflow-hidden">
-      <Suspense fallback={<LoadingPlaceholder text="Loading..." />}>
-        {activeActivity === 'ai' && <AIChatPanel />}
-        {activeActivity === 'assets' && <AssetManager />}
-        {activeActivity === 'prompt' && <PromptTemplateEditor />}
-      </Suspense>
+    <div className="w-full h-full flex items-center justify-center bg-[#252526]">
+      <div className="text-center">
+        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-[#007acc]" />
+        <p className="text-xs text-[#969696]">{text}</p>
+      </div>
     </div>
   );
 }
 
+export default function Sidebar({ activeActivity }: SidebarProps) {
+  const renderContent = () => {
+    switch (activeActivity) {
+      case 'ai':
+        return (
+          <Suspense fallback={<LoadingPlaceholder text="加载 AI 助手..." />}>
+            <AiAssistant />
+          </Suspense>
+        );
+      case 'assets':
+        return (
+          <Suspense fallback={<LoadingPlaceholder text="加载资源管理..." />}>
+            <AssetsManager />
+          </Suspense>
+        );
+      case 'prompt':
+        return (
+          <Suspense fallback={<LoadingPlaceholder text="加载模板..." />}>
+            <PromptTemplate />
+          </Suspense>
+        );
+      case 'settings':
+        return (
+          <Suspense fallback={<LoadingPlaceholder text="加载设置..." />}>
+            <Settings />
+          </Suspense>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="w-full h-full bg-[#252526] border-r border-[#3e3e42] overflow-hidden">
+      {renderContent()}
+    </div>
+  );
+}

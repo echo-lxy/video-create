@@ -2,40 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Allotment 样式覆盖 - VSCode 风格 */
-/* 确保 Allotment 容器有正确的尺寸 */
-.allotment {
-  width: 100% !important;
-  height: 100% !important;
-  position: relative;
-  display: flex !important;
-  flex-direction: row !important;
-}
-
-.allotment.vertical {
-  flex-direction: column !important;
-}
-
-.split-view-view {
-  background-color: #1e1e1e !important;
-  width: 100% !important;
-  height: 100% !important;
-  position: relative;
+/* 全局布局重置 */
+html, body, #__next {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
 }
 
-.split-view-container {
-  width: 100% !important;
-  height: 100% !important;
-  position: relative;
+/* Allotment 样式 - VSCode 风格 */
+.allotment {
+  width: 100%;
+  height: 100%;
 }
 
-/* 分隔条样式 - VSCode 风格 */
 .sash {
   background-color: #3e3e42 !important;
-  transition: background-color 0.1s ease;
-  z-index: 35 !important;
-  position: relative;
+  transition: background-color 0.15s ease;
+  z-index: 100 !important;
 }
 
 .sash:hover {
@@ -45,56 +30,17 @@
 .sash.vertical {
   width: 4px !important;
   cursor: col-resize !important;
-  min-width: 4px !important;
 }
 
 .sash.horizontal {
   height: 4px !important;
   cursor: row-resize !important;
-  min-height: 4px !important;
 }
 
-.sash-container {
-  pointer-events: all !important;
-  position: relative;
-  z-index: 35;
-}
-
-/* 确保面板内容填满 */
-.split-view-view > * {
-  width: 100% !important;
-  height: 100% !important;
-  position: relative;
-  overflow: hidden;
-}
-
-/* 防止内容溢出 */
-.split-view-view {
-  overflow: hidden !important;
-}
-
-/* 确保所有子元素正确显示 */
-.allotment > * {
-  position: relative;
-}
-
-/* 工具栏和标签栏始终可见，不被覆盖 */
-.tab-bar,
-.toolbar {
-  position: relative !important;
-  z-index: 10 !important;
-  flex-shrink: 0 !important;
-}
-
-/* 确保拖动时所有元素可见 */
-.allotment.dragging .split-view-view {
-  pointer-events: auto !important;
-}
-
-/* 标签拖动时的样式 */
-.dragging-tab {
-  opacity: 0.5;
-  z-index: 1000;
+/* 确保按钮可点击 */
+button {
+  cursor: pointer;
+  user-select: none;
 }
 
 @layer base {

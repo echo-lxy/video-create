@@ -4,7 +4,8 @@ const isProduction = process.env.NODE_ENV === 'production';
 const basePath = isProduction ? '/video-create' : '';
 
 const nextConfig = {
-  output: 'export',
+  // 移除 output: 'export' 以支持 API 路由
+  // output: 'export', // 注释掉，因为 AI 功能需要 API 路由
   basePath: basePath,
   assetPrefix: basePath,
   images: {
